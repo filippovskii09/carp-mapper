@@ -30,15 +30,17 @@ function recalculateMarkers(anchor: Location, markersById: Record<string, Fishin
 
 export const createMapSlice: StateCreator<MapStore, [], [], MapStore> = (set, get) => ({
   anchor: null,
+  anchorAccuracy: null,
   isCalibratingAnchor: false,
   isPlacingAnchorManually: false,
   editingMarkerId: null,
   markerDraft: initialMarkerDraft,
   markerIds: [],
   markersById: {},
-  setAnchor: (loc: Location) => {
+  setAnchor: (loc: Location, accuracyMeters: number | null = null) => {
     set((state) => ({
       anchor: loc,
+      anchorAccuracy: accuracyMeters,
       isPlacingAnchorManually: false,
       markersById: recalculateMarkers(loc, state.markersById)
     }));

@@ -10,6 +10,7 @@ export const MapCanvas = memo(function MapCanvas() {
   const t = useI18n();
   const containerRef = useRef<HTMLDivElement>(null);
   const anchor = useMapStore((state) => state.anchor);
+  const anchorAccuracy = useMapStore((state) => state.anchorAccuracy);
   const isPlacingAnchorManually = useMapStore((state) => state.isPlacingAnchorManually);
   const markers = useMapStore(useShallow(selectMarkers));
   const setAnchor = useMapStore((state) => state.setAnchor);
@@ -20,6 +21,7 @@ export const MapCanvas = memo(function MapCanvas() {
   useMapbox({
     containerRef,
     anchor,
+    anchorAccuracy,
     isPlacingAnchorManually,
     markers,
     preview,

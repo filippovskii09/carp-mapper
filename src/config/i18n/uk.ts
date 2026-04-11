@@ -25,6 +25,9 @@ export const uk = {
     calibrating: 'Калібрування...',
     manualPlacement: 'Клікни на точне місце род-пода на супутниковій мапі.',
     calibrationHint: 'Перетягни точку на супутниковій мапі до реального місця род-пода.',
+    improvingAccuracy: 'Шукаю точніший GPS-сигнал...',
+    accuracy: (meters: number) => `Точність GPS: ±${Math.round(meters)} м`,
+    accuracyWeak: 'Якщо коло велике — GPS неточний. Використай “Вказати на мапі”.',
     errors: {
       permissionDenied: 'Доступ до геолокації заборонено.',
       unavailable: 'Геолокація зараз недоступна.',

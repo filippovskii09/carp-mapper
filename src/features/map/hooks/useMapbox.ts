@@ -4,6 +4,7 @@ import 'mapbox-gl/dist/mapbox-gl.css';
 import { DEFAULT_MAP_CENTER, DEFAULT_MAP_ZOOM, MAPBOX_STYLE } from '@/config/constants';
 import { mapboxToken } from '@/config/env';
 import {
+  anchorAccuracyLayer,
   anchorLayer,
   markerLabelLayer,
   markerLayer,
@@ -13,6 +14,7 @@ import {
   rayLayer
 } from '@/features/map/mapLayers';
 import {
+  createAnchorAccuracySource,
   createAnchorSource,
   createMarkerSource,
   createPreviewMarkerSource,
@@ -24,6 +26,7 @@ import type { FishingMarker, Location, MarkerPreview } from '@/types/domain';
 interface UseMapboxParams {
   containerRef: RefObject<HTMLDivElement>;
   anchor: Location | null;
+  anchorAccuracy: number | null;
   isPlacingAnchorManually: boolean;
   markers: FishingMarker[];
   preview: MarkerPreview | null;
@@ -61,6 +64,13 @@ function addMapSourcesAndLayers(map: mapboxgl.Map): void {
     map.addSource('anchor-source', { type: 'geojson', data: createAnchorSource(null) });
   }
 
+  if (!map.getSource('anchor-accuracy-source')) {
+    map.addSource('anchor-accuracy-source', {
+      type: 'geojson',
+      data: createAnchorAccuracySource(null, null)
+    });
+  }
+
   if (!map.getSource('marker-source')) {
     map.addSource('marker-source', { type: 'geojson', data: createMarkerSource([]) });
   }
@@ -83,6 +93,10 @@ function addMapSourcesAndLayers(map: mapboxgl.Map): void {
 
   if (!map.getLayer('preview-ray-layer')) {
     map.addLayer(previewRayLayer);
+  }
+
+  if (!map.getLayer('anchor-accuracy-layer')) {
+    map.addLayer(anchorAccuracyLayer);
   }
 
   if (!map.getLayer('anchor-layer')) {
@@ -109,6 +123,7 @@ function addMapSourcesAndLayers(map: mapboxgl.Map): void {
 export function useMapbox({
   containerRef,
   anchor,
+  anchorAccuracy,
   isPlacingAnchorManually,
   markers,
   preview,
@@ -118,15 +133,15 @@ export function useMapbox({
 }: UseMapboxParams): void {
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const hasLoadedRef = useRef(false);
-  const latestDataRef = useRef({ anchor, isPlacingAnchorManually, markers, preview });
+  const latestDataRef = useRef({ anchor, anchorAccuracy, isPlacingAnchorManually, markers, preview });
   const callbacksRef = useRef({ onAnchorChange, onAnchorDragStateChange, onMarkerSelect });
   const isDraggingAnchorRef = useRef(false);
   const lastDragLocationRef = useRef<Location | null>(null);
   const previousAnchorRef = useRef<Location | null>(anchor);
 
   useEffect(() => {
-    latestDataRef.current = { anchor, isPlacingAnchorManually, markers, preview };
-  }, [anchor, isPlacingAnchorManually, markers, preview]);
+    latestDataRef.current = { anchor, anchorAccuracy, isPlacingAnchorManually, markers, preview };
+  }, [anchor, anchorAccuracy, isPlacingAnchorManually, markers, preview]);
 
   useEffect(() => {
     callbacksRef.current = { onAnchorChange, onAnchorDragStateChange, onMarkerSelect };
@@ -164,6 +179,14 @@ export function useMapbox({
       addMapSourcesAndLayers(map);
       hasLoadedRef.current = true;
       setSourceData(map, 'anchor-source', createAnchorSource(latestDataRef.current.anchor));
+      setSourceData(
+        map,
+        'anchor-accuracy-source',
+        createAnchorAccuracySource(
+          latestDataRef.current.anchor,
+          latestDataRef.current.anchorAccuracy
+        )
+      );
       setSourceData(map, 'marker-source', createMarkerSource(latestDataRef.current.markers));
       setSourceData(
         map,
@@ -265,6 +288,7 @@ export function useMapbox({
     }
 
     setSourceData(map, 'anchor-source', createAnchorSource(anchor));
+    setSourceData(map, 'anchor-accuracy-source', createAnchorAccuracySource(anchor, anchorAccuracy));
     setSourceData(map, 'marker-source', createMarkerSource(markers));
     setSourceData(map, 'ray-source', createRaySource(anchor, markers));
     setSourceData(map, 'preview-marker-source', createPreviewMarkerSource(preview));
@@ -279,5 +303,5 @@ export function useMapbox({
     }
 
     previousAnchorRef.current = anchor;
-  }, [anchor, isPlacingAnchorManually, markers, preview]);
+  }, [anchor, anchorAccuracy, isPlacingAnchorManually, markers, preview]);
 }

@@ -1,6 +1,7 @@
-import type { Feature, FeatureCollection, LineString, Point } from 'geojson';
+import type { Feature, FeatureCollection, LineString, Point, Polygon } from 'geojson';
 import { STRUCTURE_LABELS } from '@/config/constants';
 import { uk } from '@/config/i18n/uk';
+import { geoService } from '@/services/GeoService';
 import type { FishingMarker, Location, MarkerPreview } from '@/types/domain';
 
 type MarkerPointProperties = {
@@ -34,6 +35,38 @@ export function createAnchorSource(anchor: Location | null): FeatureCollection<P
   return {
     type: 'FeatureCollection',
     features
+  };
+}
+
+export function createAnchorAccuracySource(
+  anchor: Location | null,
+  accuracyMeters: number | null
+): FeatureCollection<Polygon> {
+  if (!anchor || !accuracyMeters || accuracyMeters <= 0) {
+    return {
+      type: 'FeatureCollection',
+      features: []
+    };
+  }
+
+  const coordinates: [number, number][] = [];
+
+  for (let bearing = 0; bearing <= 360; bearing += 10) {
+    coordinates.push(geoService.calculateDestination(anchor, accuracyMeters, bearing));
+  }
+
+  const feature: Feature<Polygon> = {
+    type: 'Feature',
+    geometry: {
+      type: 'Polygon',
+      coordinates: [coordinates]
+    },
+    properties: {}
+  };
+
+  return {
+    type: 'FeatureCollection',
+    features: [feature]
   };
 }
 

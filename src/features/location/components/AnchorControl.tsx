@@ -11,15 +11,16 @@ function formatCoord(value: number): string {
 export function AnchorControl() {
   const t = useI18n();
   const anchor = useMapStore((state) => state.anchor);
+  const anchorAccuracy = useMapStore((state) => state.anchorAccuracy);
   const isCalibratingAnchor = useMapStore((state) => state.isCalibratingAnchor);
   const isPlacingAnchorManually = useMapStore((state) => state.isPlacingAnchorManually);
   const setAnchor = useMapStore((state) => state.setAnchor);
   const setManualAnchorPlacement = useMapStore((state) => state.setManualAnchorPlacement);
-  const { error, isLoading, getCurrentLocation } = useGeolocation();
+  const { accuracy, error, isLoading, getCurrentLocation } = useGeolocation();
 
   const handleSetAnchor = async (): Promise<void> => {
-    const location = await getCurrentLocation();
-    setAnchor(location);
+    const fix = await getCurrentLocation();
+    setAnchor(fix.location, fix.accuracy);
   };
 
   return (
@@ -55,12 +56,15 @@ export function AnchorControl() {
           <p className="break-words">
             {formatCoord(anchor.lat)}, {formatCoord(anchor.lng)}
           </p>
+          {anchorAccuracy ? <p>{t.anchor.accuracy(anchorAccuracy)}</p> : null}
           <p className={isCalibratingAnchor || isPlacingAnchorManually ? 'text-primary' : ''}>
             {isPlacingAnchorManually
               ? t.anchor.manualPlacement
               : isCalibratingAnchor
                 ? t.anchor.calibrating
-                : t.anchor.calibrationHint}
+                : anchorAccuracy && anchorAccuracy > 25
+                  ? t.anchor.accuracyWeak
+                  : t.anchor.calibrationHint}
           </p>
         </div>
       ) : (
@@ -68,6 +72,12 @@ export function AnchorControl() {
           {isPlacingAnchorManually ? t.anchor.manualPlacement : t.anchor.empty}
         </p>
       )}
+
+      {isLoading && accuracy ? (
+        <p className="mt-2 text-xs text-primary">
+          {t.anchor.improvingAccuracy} {t.anchor.accuracy(accuracy)}
+        </p>
+      ) : null}
 
       {error ? <p className="mt-2 text-xs text-destructive">{error}</p> : null}
     </section>

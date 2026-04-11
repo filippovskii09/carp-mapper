@@ -75,13 +75,14 @@ export type MarkerEntityMap = Record<string, FishingMarker>;
 
 export interface MapStore {
   anchor: Location | null;
+  anchorAccuracy: number | null;
   isCalibratingAnchor: boolean;
   isPlacingAnchorManually: boolean;
   editingMarkerId: string | null;
   markerDraft: MarkerFormDraft;
   markerIds: string[];
   markersById: MarkerEntityMap;
-  setAnchor: (loc: Location) => void;
+  setAnchor: (loc: Location, accuracyMeters?: number | null) => void;
   setAnchorCalibrationState: (isCalibrating: boolean) => void;
   setManualAnchorPlacement: (isPlacing: boolean) => void;
   setMarkerDraftField: <TField extends keyof MarkerFormDraft>(

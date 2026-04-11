@@ -1,6 +1,7 @@
 import type {
   CircleLayerSpecification,
   ExpressionSpecification,
+  FillLayerSpecification,
   LineLayerSpecification,
   SymbolLayerSpecification
 } from 'mapbox-gl';
@@ -32,6 +33,17 @@ export const anchorLayer: CircleLayerSpecification = {
     'circle-color': '#f4efe1',
     'circle-stroke-color': '#11140f',
     'circle-stroke-width': 3
+  }
+};
+
+export const anchorAccuracyLayer: FillLayerSpecification = {
+  id: 'anchor-accuracy-layer',
+  type: 'fill',
+  source: 'anchor-accuracy-source',
+  paint: {
+    'fill-color': '#f4efe1',
+    'fill-opacity': 0.16,
+    'fill-outline-color': '#f4efe1'
   }
 };
 

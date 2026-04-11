@@ -13,6 +13,7 @@ export const useMapStore = create<MapStore>()(
       storage: createJSONStorage(() => localStorage),
       partialize: (state) => ({
         anchor: state.anchor,
+        anchorAccuracy: state.anchorAccuracy,
         markerIds: state.markerIds,
         markersById: state.markersById
       })
