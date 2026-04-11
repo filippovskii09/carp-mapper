@@ -5,10 +5,31 @@ export interface Location {
 
 export type BottomStructure = 'mud' | 'sand' | 'gravel' | 'clay' | 'weed';
 
+export type DistanceInputMode = 'meters' | 'wraps';
+
+export interface WrapDistance {
+  wraps: number;
+  remainderMeters: number;
+  pegDistanceMeters: number;
+}
+
+export interface DistanceRecommendation {
+  markerDistanceMeters: number;
+  markerWraps: number;
+  workRodDistanceMeters: number;
+  workRodWraps: number;
+  compensationMeters: number;
+}
+
 export interface FishingMarker {
   id: string;
   name: string;
   distance: number;
+  distanceMode: DistanceInputMode;
+  wrapDistance: WrapDistance | null;
+  workRodDistance: number;
+  workRodWraps: number | null;
+  horizonMarker: string;
   azimuth: number;
   depth: number;
   structure: BottomStructure;
@@ -19,6 +40,11 @@ export interface FishingMarker {
 export interface MarkerDraft {
   name: string;
   distance: number;
+  distanceMode: DistanceInputMode;
+  wrapDistance: WrapDistance | null;
+  workRodDistance: number;
+  workRodWraps: number | null;
+  horizonMarker: string;
   azimuth: number;
   depth: number;
   structure: BottomStructure;
@@ -26,9 +52,14 @@ export interface MarkerDraft {
 
 export interface MarkerFormDraft {
   name: string;
+  distanceMode: DistanceInputMode;
   distance: string;
+  wraps: string;
+  wrapRemainder: string;
+  pegDistance: string;
   azimuth: string;
   depth: string;
+  horizonMarker: string;
   structure: BottomStructure;
 }
 

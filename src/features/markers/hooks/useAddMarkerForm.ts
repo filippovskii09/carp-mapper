@@ -1,14 +1,20 @@
 import { useState } from 'react';
 import { uk } from '@/config/i18n/uk';
 import { markerSchema, type MarkerFormValues } from '@/features/markers/markerSchema';
+import {
+  calculateDistanceFromWraps,
+  createDistanceRecommendation,
+  getDefaultPegDistanceMeters
+} from '@/services/DistanceService';
 import { useMapStore } from '@/store';
-import type { MarkerDraft } from '@/types/domain';
+import type { MarkerDraft, WrapDistance } from '@/types/domain';
 
 type FieldErrors = Partial<Record<keyof MarkerFormValues, string>>;
 
 interface UseAddMarkerFormResult {
   values: MarkerFormValues;
   errors: FieldErrors;
+  recommendation: ReturnType<typeof createDistanceRecommendation> | null;
   updateField: <TField extends keyof MarkerFormValues>(
     field: TField,
     value: MarkerFormValues[TField]
@@ -17,6 +23,28 @@ interface UseAddMarkerFormResult {
   canSubmit: boolean;
   isEditing: boolean;
   cancelEditing: () => void;
+}
+
+function createSchemaInput(values: MarkerFormValues): MarkerFormValues {
+  if (values.distanceMode === 'meters') {
+    return {
+      ...values,
+      wraps: values.wraps || '0',
+      wrapRemainder: values.wrapRemainder || '0',
+      pegDistance: values.pegDistance || String(getDefaultPegDistanceMeters())
+    };
+  }
+
+  const wrapDistance: WrapDistance = {
+    wraps: Number(values.wraps),
+    remainderMeters: Number(values.wrapRemainder || 0),
+    pegDistanceMeters: Number(values.pegDistance || getDefaultPegDistanceMeters())
+  };
+
+  return {
+    ...values,
+    distance: String(calculateDistanceFromWraps(wrapDistance))
+  };
 }
 
 export function useAddMarkerForm(): UseAddMarkerFormResult {
@@ -32,6 +60,14 @@ export function useAddMarkerForm(): UseAddMarkerFormResult {
 
   const canSubmit = Boolean(anchor);
   const isEditing = Boolean(editingMarkerId);
+  const parsedForRecommendation = markerSchema.safeParse(createSchemaInput(values));
+  const recommendation = parsedForRecommendation.success
+    ? createDistanceRecommendation(
+        parsedForRecommendation.data.distance,
+        parsedForRecommendation.data.depth,
+        parsedForRecommendation.data.pegDistance
+      )
+    : null;
 
   const updateField = <TField extends keyof MarkerFormValues>(
     field: TField,
@@ -47,7 +83,7 @@ export function useAddMarkerForm(): UseAddMarkerFormResult {
       return;
     }
 
-    const result = markerSchema.safeParse(values);
+    const result = markerSchema.safeParse(createSchemaInput(values));
 
     if (!result.success) {
       const nextErrors: FieldErrors = {};
@@ -67,6 +103,26 @@ export function useAddMarkerForm(): UseAddMarkerFormResult {
     const marker: MarkerDraft = {
       name: result.data.name?.trim() || `${uk.markerForm.markerFallback} ${markerCount + 1}`,
       distance: result.data.distance,
+      distanceMode: result.data.distanceMode,
+      wrapDistance:
+        result.data.distanceMode === 'wraps'
+          ? {
+              wraps: result.data.wraps,
+              remainderMeters: result.data.wrapRemainder,
+              pegDistanceMeters: result.data.pegDistance
+            }
+          : null,
+      workRodDistance: createDistanceRecommendation(
+        result.data.distance,
+        result.data.depth,
+        result.data.pegDistance
+      ).workRodDistanceMeters,
+      workRodWraps: createDistanceRecommendation(
+        result.data.distance,
+        result.data.depth,
+        result.data.pegDistance
+      ).workRodWraps,
+      horizonMarker: result.data.horizonMarker?.trim() ?? '',
       azimuth: result.data.azimuth,
       depth: result.data.depth,
       structure: result.data.structure
@@ -87,5 +143,14 @@ export function useAddMarkerForm(): UseAddMarkerFormResult {
     setErrors({});
   };
 
-  return { values, errors, updateField, submit, canSubmit, isEditing, cancelEditing };
+  return {
+    values,
+    errors,
+    recommendation,
+    updateField,
+    submit,
+    canSubmit,
+    isEditing,
+    cancelEditing
+  };
 }

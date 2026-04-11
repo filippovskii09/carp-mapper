@@ -1,12 +1,18 @@
 import type { StateCreator } from 'zustand';
+import { getDefaultPegDistanceMeters } from '@/services/DistanceService';
 import { geoService } from '@/services/GeoService';
 import type { FishingMarker, Location, MapStore, MarkerDraft, MarkerFormDraft } from '@/types/domain';
 
 const initialMarkerDraft: MarkerFormDraft = {
   name: '',
+  distanceMode: 'meters',
   distance: '',
+  wraps: '',
+  wrapRemainder: '0',
+  pegDistance: String(getDefaultPegDistanceMeters()),
   azimuth: '',
   depth: '',
+  horizonMarker: '',
   structure: 'sand'
 };
 
@@ -68,9 +74,16 @@ export const createMapSlice: StateCreator<MapStore, [], [], MapStore> = (set, ge
       editingMarkerId: id,
       markerDraft: {
         name: marker.name,
+        distanceMode: marker.distanceMode ?? 'meters',
         distance: String(marker.distance),
+        wraps: marker.wrapDistance ? String(marker.wrapDistance.wraps) : '',
+        wrapRemainder: marker.wrapDistance ? String(marker.wrapDistance.remainderMeters) : '0',
+        pegDistance: marker.wrapDistance
+          ? String(marker.wrapDistance.pegDistanceMeters)
+          : String(getDefaultPegDistanceMeters()),
         azimuth: String(marker.azimuth),
         depth: String(marker.depth),
+        horizonMarker: marker.horizonMarker ?? '',
         structure: marker.structure
       }
     });

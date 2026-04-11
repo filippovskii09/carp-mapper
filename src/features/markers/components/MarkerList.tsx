@@ -53,6 +53,20 @@ export const MarkerList = memo(function MarkerList() {
                     {Math.round(measuredDistance)} m at {marker.azimuth}° · {marker.depth} m ·{' '}
                     {STRUCTURE_LABELS[marker.structure]}
                   </p>
+                  {marker.wrapDistance ? (
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {t.markers.wrapsLine(
+                        marker.wrapDistance.wraps,
+                        marker.wrapDistance.pegDistanceMeters,
+                        marker.workRodWraps
+                      )}
+                    </p>
+                  ) : null}
+                  {marker.horizonMarker ? (
+                    <p className="mt-1 truncate text-xs text-muted-foreground">
+                      {marker.horizonMarker}
+                    </p>
+                  ) : null}
                   <p className="mt-1 text-xs text-muted-foreground">{formatTime(marker.timestamp)}</p>
                 </div>
                 <Button
