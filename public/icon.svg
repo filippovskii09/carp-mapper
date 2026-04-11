@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="CarpMapper icon">
+  <rect width="128" height="128" rx="24" fill="#11140f"/>
+  <path d="M24 72c18-28 49-32 80-14-23 28-54 35-80 14Z" fill="#a3c76d"/>
+  <path d="M92 57l18-16v34L92 57Z" fill="#d0a33d"/>
+  <circle cx="48" cy="61" r="4" fill="#11140f"/>
+  <path d="M38 84c15 7 35 6 54-6" fill="none" stroke="#f4efe1" stroke-width="6" stroke-linecap="round"/>
+</svg>
