@@ -1,9 +1,11 @@
-import { lazy, Suspense, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { FishSymbol, List, MapPin, Plus } from 'lucide-react';
 import { useI18n } from '@/config/i18n';
 import { AnchorControl } from '@/features/location/components/AnchorControl';
 import { AddMarkerForm } from '@/features/markers/components/AddMarkerForm';
 import { MarkerList } from '@/features/markers/components/MarkerList';
+import { useMapStore } from '@/store';
+import { useToastStore } from '@/store/toastStore';
 
 type MobilePanel = 'anchor' | 'marker' | 'list';
 
@@ -41,6 +43,27 @@ export default function App() {
   const t = useI18n();
   const [activePanel, setActivePanel] = useState<MobilePanel>('anchor');
   const [isSheetExpanded, setIsSheetExpanded] = useState(false);
+  const markerDraftDistance = useMapStore((state) => state.markerDraft.distance);
+  const markerDraftAzimuth = useMapStore((state) => state.markerDraft.azimuth);
+  const toastMessage = useToastStore((state) => state.message);
+  const clearToast = useToastStore((state) => state.clearToast);
+
+  useEffect(() => {
+    if (markerDraftDistance && markerDraftAzimuth) {
+      setActivePanel('marker');
+      setIsSheetExpanded(true);
+    }
+  }, [markerDraftAzimuth, markerDraftDistance]);
+
+  useEffect(() => {
+    if (!toastMessage) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(clearToast, 2600);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [clearToast, toastMessage]);
 
   const mobileTabs = [
     { id: 'anchor' as const, label: t.app.panels.anchor, icon: MapPin },
@@ -111,6 +134,12 @@ export default function App() {
           <MobilePanelContent activePanel={activePanel} />
         </div>
       </aside>
+
+      {toastMessage ? (
+        <div className="mobile-toast" role="status" aria-live="polite">
+          {toastMessage}
+        </div>
+      ) : null}
     </main>
   );
 }

@@ -32,6 +32,8 @@ interface UseMapboxParams {
   preview: MarkerPreview | null;
   onAnchorChange: (loc: Location) => void;
   onAnchorDragStateChange: (isDragging: boolean) => void;
+  onDraftMarkerPlace: (loc: Location) => void;
+  onMissingAnchorTap: () => void;
   onMarkerSelect: (id: string) => void;
 }
 
@@ -129,12 +131,20 @@ export function useMapbox({
   preview,
   onAnchorChange,
   onAnchorDragStateChange,
+  onDraftMarkerPlace,
+  onMissingAnchorTap,
   onMarkerSelect
 }: UseMapboxParams): void {
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const hasLoadedRef = useRef(false);
   const latestDataRef = useRef({ anchor, anchorAccuracy, isPlacingAnchorManually, markers, preview });
-  const callbacksRef = useRef({ onAnchorChange, onAnchorDragStateChange, onMarkerSelect });
+  const callbacksRef = useRef({
+    onAnchorChange,
+    onAnchorDragStateChange,
+    onDraftMarkerPlace,
+    onMissingAnchorTap,
+    onMarkerSelect
+  });
   const isDraggingAnchorRef = useRef(false);
   const lastDragLocationRef = useRef<Location | null>(null);
   const previousAnchorRef = useRef<Location | null>(anchor);
@@ -144,8 +154,20 @@ export function useMapbox({
   }, [anchor, anchorAccuracy, isPlacingAnchorManually, markers, preview]);
 
   useEffect(() => {
-    callbacksRef.current = { onAnchorChange, onAnchorDragStateChange, onMarkerSelect };
-  }, [onAnchorChange, onAnchorDragStateChange, onMarkerSelect]);
+    callbacksRef.current = {
+      onAnchorChange,
+      onAnchorDragStateChange,
+      onDraftMarkerPlace,
+      onMissingAnchorTap,
+      onMarkerSelect
+    };
+  }, [
+    onAnchorChange,
+    onAnchorDragStateChange,
+    onDraftMarkerPlace,
+    onMissingAnchorTap,
+    onMarkerSelect
+  ]);
 
   useEffect(() => {
     if (!containerRef.current || !mapboxToken || mapRef.current) {
@@ -230,6 +252,23 @@ export function useMapbox({
       });
       map.on('click', (event) => {
         if (!latestDataRef.current.isPlacingAnchorManually) {
+          const markerFeatures = map.queryRenderedFeatures(event.point, {
+            layers: ['marker-layer', 'anchor-layer']
+          });
+
+          if (markerFeatures.length > 0) {
+            return;
+          }
+
+          if (!latestDataRef.current.anchor) {
+            callbacksRef.current.onMissingAnchorTap();
+            return;
+          }
+
+          callbacksRef.current.onDraftMarkerPlace({
+            lng: event.lngLat.lng,
+            lat: event.lngLat.lat
+          });
           return;
         }
 

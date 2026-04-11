@@ -85,6 +85,7 @@ export interface MapStore {
   setAnchor: (loc: Location, accuracyMeters?: number | null) => void;
   setAnchorCalibrationState: (isCalibrating: boolean) => void;
   setManualAnchorPlacement: (isPlacing: boolean) => void;
+  placeDraftMarker: (loc: Location) => void;
   setMarkerDraftField: <TField extends keyof MarkerFormDraft>(
     field: TField,
     value: MarkerFormDraft[TField]

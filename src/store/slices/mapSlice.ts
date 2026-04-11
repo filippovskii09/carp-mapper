@@ -51,6 +51,28 @@ export const createMapSlice: StateCreator<MapStore, [], [], MapStore> = (set, ge
   setManualAnchorPlacement: (isPlacing: boolean) => {
     set({ isPlacingAnchorManually: isPlacing });
   },
+  placeDraftMarker: (loc: Location) => {
+    const anchor = get().anchor;
+
+    if (!anchor) {
+      return;
+    }
+
+    const distance = geoService.calculateDistance(anchor, loc);
+    const azimuth = geoService.calculateBearing(anchor, loc);
+
+    set((state) => ({
+      editingMarkerId: null,
+      markerDraft: {
+        ...state.markerDraft,
+        distanceMode: 'meters',
+        distance: distance.toFixed(1),
+        azimuth: azimuth.toFixed(0),
+        wraps: '',
+        wrapRemainder: '0'
+      }
+    }));
+  },
   setMarkerDraftField: (field, value) => {
     set((state) => ({
       markerDraft: {

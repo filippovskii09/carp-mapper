@@ -5,6 +5,7 @@ import { useI18n } from '@/config/i18n';
 import { useMapbox } from '@/features/map/hooks/useMapbox';
 import { useMarkerPreview } from '@/features/markers/hooks/useMarkerPreview';
 import { selectMarkers, useMapStore } from '@/store';
+import { useToastStore } from '@/store/toastStore';
 
 export const MapCanvas = memo(function MapCanvas() {
   const t = useI18n();
@@ -16,6 +17,8 @@ export const MapCanvas = memo(function MapCanvas() {
   const setAnchor = useMapStore((state) => state.setAnchor);
   const setAnchorCalibrationState = useMapStore((state) => state.setAnchorCalibrationState);
   const selectMarkerForEditing = useMapStore((state) => state.selectMarkerForEditing);
+  const placeDraftMarker = useMapStore((state) => state.placeDraftMarker);
+  const showToast = useToastStore((state) => state.showToast);
   const preview = useMarkerPreview();
 
   useMapbox({
@@ -27,6 +30,8 @@ export const MapCanvas = memo(function MapCanvas() {
     preview,
     onAnchorChange: setAnchor,
     onAnchorDragStateChange: setAnchorCalibrationState,
+    onDraftMarkerPlace: placeDraftMarker,
+    onMissingAnchorTap: () => showToast(t.toast.anchorRequired),
     onMarkerSelect: selectMarkerForEditing
   });
 

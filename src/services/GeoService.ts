@@ -1,4 +1,6 @@
+import { bearing } from '@turf/bearing';
 import { destination } from '@turf/destination';
+import { distance } from '@turf/distance';
 import { point } from '@turf/helpers';
 import type { Location } from '@/types/domain';
 
@@ -36,6 +38,21 @@ export class GeoService {
     const [lng, lat] = result.geometry.coordinates;
 
     return [lng, lat];
+  }
+
+  calculateBearing(anchor: Location, target: Location): number {
+    const origin = point([anchor.lng, anchor.lat]);
+    const destinationPoint = point([target.lng, target.lat]);
+    const calculatedBearing = bearing(origin, destinationPoint);
+
+    return (calculatedBearing + 360) % 360;
+  }
+
+  calculateDistance(anchor: Location, target: Location): number {
+    const origin = point([anchor.lng, anchor.lat]);
+    const destinationPoint = point([target.lng, target.lat]);
+
+    return distance(origin, destinationPoint, { units: 'meters' });
   }
 
   calculateDestinationByFormula(anchor: Location, distanceMeters: number, azimuthDegrees: number): [number, number] {

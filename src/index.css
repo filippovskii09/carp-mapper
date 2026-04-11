@@ -94,7 +94,7 @@
 }
 
 .mobile-sheet-expanded {
-  max-height: min(78dvh, 42rem);
+  max-height: min(56dvh, 34rem);
 }
 
 .mobile-sheet-compact > div:last-child {
@@ -141,6 +141,24 @@
   box-shadow: inset 0 0 0 1px hsl(var(--primary) / 0.45);
 }
 
+.mobile-toast {
+  position: absolute;
+  right: max(1rem, env(safe-area-inset-right));
+  bottom: calc(13.75rem + env(safe-area-inset-bottom));
+  left: max(1rem, env(safe-area-inset-left));
+  z-index: 30;
+  border: 1px solid hsl(var(--border));
+  border-radius: 8px;
+  background: hsl(var(--background) / 0.94);
+  padding: 0.85rem 1rem;
+  color: hsl(var(--foreground));
+  font-size: 0.95rem;
+  font-weight: 700;
+  text-align: center;
+  box-shadow: 0 14px 40px rgb(0 0 0 / 0.38);
+  backdrop-filter: blur(16px);
+}
+
 .mapboxgl-ctrl-bottom-left,
 .mapboxgl-ctrl-bottom-right {
   margin-bottom: calc(13.5rem + env(safe-area-inset-bottom));
@@ -156,6 +174,13 @@
   select,
   textarea {
     font-size: 0.875rem;
+  }
+
+  .mobile-toast {
+    right: 1rem;
+    bottom: 1rem;
+    left: auto;
+    width: 22rem;
   }
 }
 

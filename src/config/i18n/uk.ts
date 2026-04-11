@@ -102,6 +102,9 @@ export const uk = {
     ariaLabel: 'Супутникова мапа рибальських міток',
     markerLabel: (depth: number, structure: string) => `Глиб: ${depth}м | ${structure}`
   },
+  toast: {
+    anchorRequired: 'Please set your base point first.'
+  },
   bottomStructures: {
     mud: 'Мул',
     sand: 'Пісок',
