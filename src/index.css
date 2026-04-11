@@ -25,12 +25,19 @@
   html,
   body,
   #root {
+    height: 100%;
     min-height: 100%;
+    overflow: hidden;
+    overscroll-behavior: none;
   }
 
   body {
     @apply bg-background text-foreground antialiased;
     margin: 0;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-text-size-adjust: 100%;
+    user-select: none;
   }
 
   button,
@@ -38,9 +45,106 @@
   select {
     font: inherit;
   }
+
+  input,
+  select,
+  textarea {
+    user-select: text;
+    font-size: 16px;
+  }
 }
 
 .mapboxgl-ctrl-logo,
 .mapboxgl-ctrl-attrib {
   opacity: 0.78;
+}
+
+.app-shell {
+  height: 100vh;
+  height: 100dvh;
+  min-height: 100vh;
+  min-height: 100dvh;
+  padding-top: env(safe-area-inset-top);
+  padding-right: env(safe-area-inset-right);
+  padding-bottom: env(safe-area-inset-bottom);
+  padding-left: env(safe-area-inset-left);
+}
+
+.mobile-sheet {
+  position: absolute;
+  right: max(0.75rem, env(safe-area-inset-right));
+  bottom: max(0.75rem, env(safe-area-inset-bottom));
+  left: max(0.75rem, env(safe-area-inset-left));
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid hsl(var(--border));
+  border-radius: 8px;
+  background: hsl(var(--background) / 0.94);
+  box-shadow: 0 22px 55px rgb(0 0 0 / 0.45);
+  backdrop-filter: blur(18px);
+  transition:
+    max-height 180ms ease,
+    transform 180ms ease;
+}
+
+.mobile-sheet-compact {
+  max-height: 12.5rem;
+}
+
+.mobile-sheet-expanded {
+  max-height: min(78dvh, 42rem);
+}
+
+.mobile-sheet-compact > div:last-child {
+  display: none;
+}
+
+.mobile-sheet > div:last-child {
+  -webkit-overflow-scrolling: touch;
+}
+
+.mobile-tab {
+  min-height: 3rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  border: 1px solid hsl(var(--border));
+  border-radius: 8px;
+  background: hsl(var(--muted) / 0.48);
+  color: hsl(var(--muted-foreground));
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.mobile-tab-active {
+  border-color: hsl(var(--primary) / 0.8);
+  background: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+}
+
+.mapboxgl-ctrl-bottom-left,
+.mapboxgl-ctrl-bottom-right {
+  margin-bottom: calc(13.5rem + env(safe-area-inset-bottom));
+}
+
+@media (min-width: 768px) {
+  .mapboxgl-ctrl-bottom-left,
+  .mapboxgl-ctrl-bottom-right {
+    margin-bottom: 0;
+  }
+
+  input,
+  select,
+  textarea {
+    font-size: 0.875rem;
+  }
+}
+
+@media (max-width: 767px) {
+  .mapboxgl-ctrl-bottom-right .mapboxgl-ctrl-group {
+    display: none;
+  }
 }
