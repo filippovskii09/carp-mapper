@@ -1,0 +1,46 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: dark;
+    --background: 90 12% 7%;
+    --foreground: 48 22% 92%;
+    --muted: 88 10% 15%;
+    --muted-foreground: 52 10% 68%;
+    --border: 75 9% 24%;
+    --input: 82 10% 18%;
+    --ring: 84 42% 61%;
+    --primary: 84 42% 61%;
+    --primary-foreground: 96 21% 9%;
+    --destructive: 4 68% 50%;
+    --destructive-foreground: 42 33% 96%;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  html,
+  body,
+  #root {
+    min-height: 100%;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    margin: 0;
+  }
+
+  button,
+  input,
+  select {
+    font: inherit;
+  }
+}
+
+.mapboxgl-ctrl-logo,
+.mapboxgl-ctrl-attrib {
+  opacity: 0.78;
+}
