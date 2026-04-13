@@ -20,6 +20,8 @@ export interface WeatherFetchResult {
 }
 
 const CARDINAL_DIRECTIONS = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'] as const;
+const SYNODIC_MONTH_DAYS = 29.530588853;
+const KNOWN_NEW_MOON_UTC = Date.UTC(2000, 0, 6, 18, 14);
 
 function round(value: number, precision = 1): number {
   const factor = 10 ** precision;
@@ -48,19 +50,77 @@ export function calculateFishingConditions(
   trend: PressureTrend,
   windDir: string
 ): string {
+  let score = 0;
+
   if (pressure < 1012 && trend === 'falling') {
-    return '🔥 High Activity (Bottom Feeding)';
+    score += 2;
+  } else if (pressure > 1020 && trend === 'rising') {
+    score -= 2;
+  } else if (trend === 'falling') {
+    score += 0.75;
+  } else if (trend === 'rising') {
+    score -= 0.75;
   }
 
-  if (pressure > 1020 && trend === 'rising') {
-    return '⚠️ Low Activity (Try Zig-Rigs)';
+  if (windDir === 'S' || windDir === 'SW') {
+    score += 0.75;
+  } else if (windDir === 'N' || windDir === 'E' || windDir === 'NE') {
+    score -= 0.75;
   }
 
-  if (windDir.includes('S') || windDir === 'SW') {
-    return '💨 Good Wind Direction';
+  if (score >= 1.75) {
+    return '🔥 Висока активність (Донне харчування)';
   }
 
-  return 'Stable Conditions';
+  if (score <= -1.75) {
+    return '⚠️ Низька активність (Спробуйте Zig-Rig)';
+  }
+
+  if (windDir === 'S' || windDir === 'SW') {
+    return '💨 Добрий напрям вітру';
+  }
+
+  if (windDir === 'N' || windDir === 'E' || windDir === 'NE') {
+    return '🌬️ Обережно: холодний вітер';
+  }
+
+  return 'Стабільні умови';
+}
+
+export function getMoonPhase(timestamp: number): Pick<WeatherSnapshot, 'moonPhaseIcon' | 'moonPhaseLabel'> {
+  const daysSinceKnownNewMoon = (timestamp - KNOWN_NEW_MOON_UTC) / 86_400_000;
+  const phase = ((daysSinceKnownNewMoon % SYNODIC_MONTH_DAYS) + SYNODIC_MONTH_DAYS) % SYNODIC_MONTH_DAYS;
+  const phaseRatio = phase / SYNODIC_MONTH_DAYS;
+
+  if (phaseRatio < 0.0625 || phaseRatio >= 0.9375) {
+    return { moonPhaseIcon: '🌑', moonPhaseLabel: 'Новий місяць' };
+  }
+
+  if (phaseRatio < 0.1875) {
+    return { moonPhaseIcon: '🌒', moonPhaseLabel: 'Молодий місяць' };
+  }
+
+  if (phaseRatio < 0.3125) {
+    return { moonPhaseIcon: '🌓', moonPhaseLabel: 'Перша чверть' };
+  }
+
+  if (phaseRatio < 0.4375) {
+    return { moonPhaseIcon: '🌔', moonPhaseLabel: 'Зростаючий місяць' };
+  }
+
+  if (phaseRatio < 0.5625) {
+    return { moonPhaseIcon: '🌕', moonPhaseLabel: 'Повня' };
+  }
+
+  if (phaseRatio < 0.6875) {
+    return { moonPhaseIcon: '🌖', moonPhaseLabel: 'Спадний місяць' };
+  }
+
+  if (phaseRatio < 0.8125) {
+    return { moonPhaseIcon: '🌗', moonPhaseLabel: 'Остання чверть' };
+  }
+
+  return { moonPhaseIcon: '🌘', moonPhaseLabel: 'Старий місяць' };
 }
 
 function getPastPressure(response: OpenMeteoResponse): number {
@@ -105,6 +165,8 @@ export async function fetchWeatherSnapshot(
   const pastPressure = getPastPressure(data);
   const pressureTrend = getPressureTrend(current.surface_pressure, pastPressure);
   const windDirection = getCardinalWindDirection(current.wind_direction_10m ?? 0);
+  const timestamp = current.time ? Date.parse(current.time) : Date.now();
+  const moonPhase = getMoonPhase(timestamp);
 
   return {
     snapshot: {
@@ -115,8 +177,9 @@ export async function fetchWeatherSnapshot(
       windDirectionDegrees: Math.round(current.wind_direction_10m ?? 0),
       windDirection,
       cloudCoverPercent: Math.round(current.cloud_cover ?? 0),
+      ...moonPhase,
       activityBadge: calculateFishingConditions(current.surface_pressure, pressureTrend, windDirection),
-      timestamp: current.time ? Date.parse(current.time) : Date.now()
+      timestamp
     }
   };
 }

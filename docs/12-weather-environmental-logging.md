@@ -51,22 +51,38 @@ currentWeather: WeatherSnapshot | null
 Коли користувач зберігає marker, store додає snapshot у marker:
 
 ```ts
-weather: get().currentWeather
+const weather = get().currentWeather;
+
+weather: weather ? { ...weather } : null
 ```
 
-Чому так: погода має бути зафіксована саме на момент створення точки, а не перераховуватись заднім числом.
+Чому так: погода має бути зафіксована саме на момент створення точки, а не перераховуватись заднім числом. `markersById` входить у `persist.partialize`, тому цей snapshot автоматично потрапляє в LocalStorage разом із міткою.
 
 ## Fish activity insight
 
-Простий rule-based helper:
+Простий rule-based helper використовує score:
 
 ```txt
-pressure < 1012 && falling -> High Activity
-pressure > 1020 && rising -> Low Activity
-S/SW wind -> Good Wind Direction
+pressure < 1012 && falling -> +2
+pressure > 1020 && rising -> -2
+falling trend -> +0.75
+rising trend -> -0.75
+S/SW wind -> +0.75
+N/E/NE wind -> -0.75
 ```
 
+Повертаються українські badges: `🔥 Висока активність (Донне харчування)`, `⚠️ Низька активність (Спробуйте Zig-Rig)`, `💨 Добрий напрям вітру` тощо.
+
 Це не “AI prediction”, а прозора польова підказка на базі common carp fishing heuristics.
+
+## Moon phase
+
+Forecast endpoint Open-Meteo не дає стабільної `moon_phase` змінної для цього набору даних, тому CarpMapper рахує фазу місяця локально з timestamp погодного snapshot. Це офлайн-сумісно і зберігається в marker payload:
+
+```ts
+moonPhaseIcon: '🌕'
+moonPhaseLabel: 'Повня'
+```
 
 ## Offline behavior
 

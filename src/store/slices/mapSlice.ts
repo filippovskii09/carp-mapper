@@ -131,6 +131,7 @@ export const createMapSlice: StateCreator<MapStore, [], [], MapStore> = (set, ge
   },
   addMarker: (draft: MarkerDraft) => {
     const anchor = get().anchor;
+    const weather = get().currentWeather;
 
     if (!anchor) {
       throw new Error('Anchor point is required before adding markers.');
@@ -140,7 +141,7 @@ export const createMapSlice: StateCreator<MapStore, [], [], MapStore> = (set, ge
     const marker: FishingMarker = {
       ...draft,
       id,
-      weather: get().currentWeather,
+      weather: weather ? { ...weather } : null,
       coords: geoService.calculateDestination(anchor, draft.distance, draft.azimuth),
       timestamp: Date.now()
     };
@@ -155,6 +156,7 @@ export const createMapSlice: StateCreator<MapStore, [], [], MapStore> = (set, ge
   },
   updateMarker: (id: string, draft: MarkerDraft) => {
     const anchor = get().anchor;
+    const weather = get().currentWeather;
 
     if (!anchor) {
       throw new Error('Anchor point is required before updating markers.');
@@ -173,7 +175,7 @@ export const createMapSlice: StateCreator<MapStore, [], [], MapStore> = (set, ge
           [id]: {
             ...currentMarker,
             ...draft,
-            weather: get().currentWeather ?? currentMarker.weather ?? null,
+            weather: weather ? { ...weather } : currentMarker.weather ? { ...currentMarker.weather } : null,
             coords: geoService.calculateDestination(anchor, draft.distance, draft.azimuth)
           }
         }

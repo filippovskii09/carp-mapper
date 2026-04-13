@@ -29,10 +29,10 @@ export function CurrentConditionsWidget() {
   }
 
   return (
-    <section className="weather-widget" aria-label="Current weather conditions">
+    <section className="weather-widget" aria-label="Поточні погодні умови">
       <div className="flex items-center justify-between gap-2">
         <span className="text-xs font-semibold text-muted-foreground">Погода</span>
-        {isLoading ? <span className="text-xs text-primary">sync</span> : null}
+        {isLoading ? <span className="text-xs text-primary">синхр</span> : null}
       </div>
 
       {weather ? (
@@ -53,6 +53,9 @@ export function CurrentConditionsWidget() {
           </div>
           <p className="mt-2 truncate text-xs text-muted-foreground">
             {weather.windDirection} · {weather.windSpeedKmh} км/г · хмари {weather.cloudCoverPercent}%
+          </p>
+          <p className="mt-1 truncate text-xs text-muted-foreground">
+            {weather.moonPhaseIcon} {weather.moonPhaseLabel}
           </p>
           <p className="mt-2 rounded-md bg-muted/60 px-2 py-1 text-xs font-semibold text-foreground">
             {weather.activityBadge}

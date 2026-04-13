@@ -17,6 +17,8 @@ export interface WeatherSnapshot {
   windDirectionDegrees: number;
   windDirection: string;
   cloudCoverPercent: number;
+  moonPhaseIcon: string;
+  moonPhaseLabel: string;
   activityBadge: string;
   timestamp: number;
 }
