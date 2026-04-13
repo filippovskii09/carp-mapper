@@ -9,17 +9,39 @@ export type DistanceInputMode = 'meters' | 'wraps';
 
 export type PressureTrend = 'falling' | 'rising' | 'steady';
 
+export type ActivityImpact = 'positive' | 'negative' | 'neutral';
+
+export type ActivityRating = 'Excellent' | 'Good' | 'Fair' | 'Tough';
+
+export interface ActivityInsight {
+  factor: string;
+  impact: ActivityImpact;
+  message: string;
+}
+
+export interface ActivityReport {
+  score: number;
+  rating: ActivityRating;
+  recommendation: string;
+  insights: ActivityInsight[];
+}
+
 export interface WeatherSnapshot {
   temperatureC: number;
   pressureHpa: number;
   pressureTrend: PressureTrend;
+  pressureDelta12h: number;
   windSpeedKmh: number;
   windDirectionDegrees: number;
   windDirection: string;
   cloudCoverPercent: number;
+  rainMm: number;
   moonPhaseIcon: string;
   moonPhaseLabel: string;
+  sunrise: string | null;
+  sunset: string | null;
   activityBadge: string;
+  activityReport: ActivityReport;
   timestamp: number;
 }
 

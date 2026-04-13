@@ -1,17 +1,23 @@
+import { calculateCarpActivity, getActivityBadge } from '@/features/weather/CarpActivityEngine';
 import type { PressureTrend, WeatherSnapshot } from '@/types/domain';
 
 interface OpenMeteoResponse {
   current?: {
     time?: string;
     temperature_2m?: number;
-    surface_pressure?: number;
+    pressure_msl?: number;
     wind_speed_10m?: number;
     wind_direction_10m?: number;
     cloud_cover?: number;
+    rain?: number;
   };
   hourly?: {
     time?: string[];
-    surface_pressure?: number[];
+    pressure_msl?: number[];
+  };
+  daily?: {
+    sunrise?: string[];
+    sunset?: string[];
   };
 }
 
@@ -31,7 +37,7 @@ function round(value: number, precision = 1): number {
 export function getPressureTrend(currentPressure: number, pastPressure: number): PressureTrend {
   const delta = currentPressure - pastPressure;
 
-  if (Math.abs(delta) < 0.5) {
+  if (Math.abs(delta) <= 2) {
     return 'steady';
   }
 
@@ -43,48 +49,6 @@ export function getCardinalWindDirection(degrees: number): string {
   const index = Math.round(normalized / 45) % CARDINAL_DIRECTIONS.length;
 
   return CARDINAL_DIRECTIONS[index];
-}
-
-export function calculateFishingConditions(
-  pressure: number,
-  trend: PressureTrend,
-  windDir: string
-): string {
-  let score = 0;
-
-  if (pressure < 1012 && trend === 'falling') {
-    score += 2;
-  } else if (pressure > 1020 && trend === 'rising') {
-    score -= 2;
-  } else if (trend === 'falling') {
-    score += 0.75;
-  } else if (trend === 'rising') {
-    score -= 0.75;
-  }
-
-  if (windDir === 'S' || windDir === 'SW') {
-    score += 0.75;
-  } else if (windDir === 'N' || windDir === 'E' || windDir === 'NE') {
-    score -= 0.75;
-  }
-
-  if (score >= 1.75) {
-    return '🔥 Висока активність (Донне харчування)';
-  }
-
-  if (score <= -1.75) {
-    return '⚠️ Низька активність (Спробуйте Zig-Rig)';
-  }
-
-  if (windDir === 'S' || windDir === 'SW') {
-    return '💨 Добрий напрям вітру';
-  }
-
-  if (windDir === 'N' || windDir === 'E' || windDir === 'NE') {
-    return '🌬️ Обережно: холодний вітер';
-  }
-
-  return 'Стабільні умови';
 }
 
 export function getMoonPhase(timestamp: number): Pick<WeatherSnapshot, 'moonPhaseIcon' | 'moonPhaseLabel'> {
@@ -123,14 +87,34 @@ export function getMoonPhase(timestamp: number): Pick<WeatherSnapshot, 'moonPhas
   return { moonPhaseIcon: '🌘', moonPhaseLabel: 'Старий місяць' };
 }
 
-function getPastPressure(response: OpenMeteoResponse): number {
-  const pressures = response.hourly?.surface_pressure?.filter((value) => Number.isFinite(value));
+function getHistoricalPressure(response: OpenMeteoResponse, currentTimestamp: number, lookbackHours: number): number {
+  const times = response.hourly?.time;
+  const pressures = response.hourly?.pressure_msl;
 
-  if (!pressures || pressures.length === 0) {
-    return response.current?.surface_pressure ?? 0;
+  if (!times || !pressures || times.length === 0 || pressures.length === 0) {
+    return response.current?.pressure_msl ?? 0;
   }
 
-  return pressures[0];
+  const targetTimestamp = currentTimestamp - lookbackHours * 3_600_000;
+  let closestPressure = response.current?.pressure_msl ?? pressures[0] ?? 0;
+  let smallestDistance = Number.POSITIVE_INFINITY;
+
+  times.forEach((time, index) => {
+    const pressure = pressures[index];
+
+    if (!Number.isFinite(pressure)) {
+      return;
+    }
+
+    const distance = Math.abs(Date.parse(time) - targetTimestamp);
+
+    if (distance < smallestDistance) {
+      smallestDistance = distance;
+      closestPressure = pressure;
+    }
+  });
+
+  return closestPressure;
 }
 
 export async function fetchWeatherSnapshot(
@@ -141,9 +125,10 @@ export async function fetchWeatherSnapshot(
   const params = new URLSearchParams({
     latitude: String(lat),
     longitude: String(lng),
-    current: 'temperature_2m,surface_pressure,wind_speed_10m,wind_direction_10m,cloud_cover',
-    hourly: 'surface_pressure',
-    past_hours: '12',
+    current: 'temperature_2m,pressure_msl,wind_speed_10m,wind_direction_10m,cloud_cover,rain',
+    hourly: 'pressure_msl',
+    daily: 'sunrise,sunset',
+    past_hours: '24',
     forecast_hours: '1',
     timezone: 'auto'
   });
@@ -158,27 +143,48 @@ export async function fetchWeatherSnapshot(
   const data = (await response.json()) as OpenMeteoResponse;
   const current = data.current;
 
-  if (!current?.surface_pressure || current.temperature_2m === undefined) {
+  if (current?.pressure_msl === undefined || current.temperature_2m === undefined) {
     throw new Error('Weather response is missing current conditions.');
   }
 
-  const pastPressure = getPastPressure(data);
-  const pressureTrend = getPressureTrend(current.surface_pressure, pastPressure);
-  const windDirection = getCardinalWindDirection(current.wind_direction_10m ?? 0);
   const timestamp = current.time ? Date.parse(current.time) : Date.now();
+  const pastPressure = getHistoricalPressure(data, timestamp, 12);
+  const pressureDelta12h = round(current.pressure_msl - pastPressure);
+  const pressureTrend = getPressureTrend(current.pressure_msl, pastPressure);
+  const windDirection = getCardinalWindDirection(current.wind_direction_10m ?? 0);
   const moonPhase = getMoonPhase(timestamp);
+  const temperatureC = round(current.temperature_2m);
+  const pressureHpa = round(current.pressure_msl);
+  const windSpeedKmh = round(current.wind_speed_10m ?? 0);
+  const cloudCoverPercent = Math.round(current.cloud_cover ?? 0);
+  const rainMm = round(current.rain ?? 0);
+  const activityReport = calculateCarpActivity({
+    temperatureC,
+    pressureHpa,
+    pressureTrend,
+    pressureDelta12h,
+    windDirection,
+    windSpeedKmh,
+    cloudCoverPercent,
+    rainMm
+  });
 
   return {
     snapshot: {
-      temperatureC: round(current.temperature_2m),
-      pressureHpa: round(current.surface_pressure),
+      temperatureC,
+      pressureHpa,
       pressureTrend,
-      windSpeedKmh: round(current.wind_speed_10m ?? 0),
+      pressureDelta12h,
+      windSpeedKmh,
       windDirectionDegrees: Math.round(current.wind_direction_10m ?? 0),
       windDirection,
-      cloudCoverPercent: Math.round(current.cloud_cover ?? 0),
+      cloudCoverPercent,
+      rainMm,
       ...moonPhase,
-      activityBadge: calculateFishingConditions(current.surface_pressure, pressureTrend, windDirection),
+      sunrise: data.daily?.sunrise?.[0] ?? null,
+      sunset: data.daily?.sunset?.[0] ?? null,
+      activityBadge: getActivityBadge(activityReport),
+      activityReport,
       timestamp
     }
   };

@@ -284,6 +284,43 @@
   backdrop-filter: blur(16px);
 }
 
+.activity-score-ring {
+  --activity-score: 0%;
+  display: grid;
+  width: 3.25rem;
+  height: 3.25rem;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 999px;
+  background: conic-gradient(hsl(var(--primary)) var(--activity-score), hsl(var(--muted)) 0);
+}
+
+.activity-score-ring::before {
+  grid-area: 1 / 1;
+  width: 2.35rem;
+  height: 2.35rem;
+  border-radius: inherit;
+  background: hsl(var(--background) / 0.92);
+  content: '';
+}
+
+.activity-score-ring span {
+  z-index: 1;
+  grid-area: 1 / 1;
+  font-size: 0.75rem;
+  font-weight: 800;
+}
+
+.activity-breakdown summary {
+  min-height: 2.35rem;
+  cursor: pointer;
+  border-radius: 8px;
+  background: hsl(var(--muted) / 0.45);
+  padding: 0.65rem 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
 .mapboxgl-ctrl-bottom-left,
 .mapboxgl-ctrl-bottom-right {
   margin-bottom: calc(13.5rem + env(safe-area-inset-bottom));
