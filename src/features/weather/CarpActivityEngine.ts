@@ -1,28 +1,28 @@
-import type { ActivityImpact, ActivityRating, ActivityReport, PressureTrend } from '@/types/domain';
+import type { ActivityRating, ActivityReport, PressureTrend, Season } from '@/types/domain';
 
 interface ActivityInput {
   temperatureC: number;
   pressureHpa: number;
   pressureTrend: PressureTrend;
-  pressureDelta12h: number;
+  pressureDelta24h: number;
+  pressureDelta48h: number;
   windDirection: string;
   windSpeedKmh: number;
   cloudCoverPercent: number;
-  rainMm: number;
+  precipitationMm: number;
+  moonPhaseAgeDays: number;
+  season: Season;
 }
 
-interface FactorScore {
+interface BaseScoreResult {
   score: number;
-  impact: ActivityImpact;
-  message: string;
+  insights: ActivityReport['insights'];
 }
 
-const WEIGHTS = {
-  temperature: 0.3,
-  pressure: 0.35,
-  wind: 0.25,
-  sky: 0.1
-} as const;
+interface MultiplierResult {
+  value: number;
+  insight: ActivityReport['insights'][number];
+}
 
 function clampScore(score: number): number {
   return Math.max(0, Math.min(100, Math.round(score)));
@@ -44,157 +44,312 @@ function getRating(score: number): ActivityRating {
   return 'Tough';
 }
 
-function scoreTemperature(temperatureC: number): FactorScore {
+function getTemperatureBaseScore(temperatureC: number): BaseScoreResult {
   if (temperatureC >= 12 && temperatureC <= 18) {
     return {
       score: 100,
-      impact: 'positive',
-      message: `${temperatureC}°C у найкращому діапазоні для стабільного харчування коропа`
+      insights: [
+        {
+          factor: 'Температура',
+          impact: 'positive',
+          message: `${temperatureC}°C: оптимальний діапазон для активного живлення (+100 базових балів)`
+        }
+      ]
     };
   }
 
-  if ((temperatureC > 18 && temperatureC <= 24) || (temperatureC >= 8 && temperatureC < 12)) {
+  if (temperatureC > 18 && temperatureC <= 23) {
     return {
-      score: 70,
-      impact: 'neutral',
-      message: `${temperatureC}°C дає робочі умови, але активність може бути хвилями`
+      score: 80,
+      insights: [
+        {
+          factor: 'Температура',
+          impact: 'positive',
+          message: `${temperatureC}°C: тепла вода, короп активний, але кисень уже важливий (+80 базових балів)`
+        }
+      ]
+    };
+  }
+
+  if (temperatureC >= 8 && temperatureC < 12) {
+    return {
+      score: 60,
+      insights: [
+        {
+          factor: 'Температура',
+          impact: 'neutral',
+          message: `${temperatureC}°C: прохолодна вода, активність можлива короткими виходами (+60 базових балів)`
+        }
+      ]
     };
   }
 
   return {
     score: 30,
-    impact: 'negative',
-    message: `${temperatureC}°C поза комфортним діапазоном, риба може бути пасивною`
+    insights: [
+      {
+        factor: 'Температура',
+        impact: 'negative',
+        message: `${temperatureC}°C: холодно або перегріто, метаболізм і живлення слабшають (+30 базових балів)`
+      }
+    ]
   };
 }
 
-function scorePressure(pressureHpa: number, trend: PressureTrend, delta12h: number): FactorScore {
-  const isFallingHard = delta12h < -2;
-  const isRisingHard = delta12h > 2;
-
-  if (isFallingHard || (pressureHpa < 1012 && trend !== 'rising')) {
-    return {
-      score: 100,
-      impact: 'positive',
-      message: 'Падіння або низький тиск стимулює впевнене донне харчування'
-    };
-  }
-
-  if (isRisingHard || pressureHpa > 1020) {
+function getPressureBonus(input: ActivityInput): BaseScoreResult {
+  if (input.pressureDelta24h < -3) {
     return {
       score: 20,
-      impact: 'negative',
-      message: 'Високий або зростаючий тиск може підняти коропа у товщу води'
+      insights: [
+        {
+          factor: 'Тиск',
+          impact: 'positive',
+          message: `Тиск падає на ${Math.abs(input.pressureDelta24h)} hPa за 24 год: тригер донного харчування (+20)`
+        }
+      ]
     };
   }
 
-  if (pressureHpa >= 1012 && pressureHpa <= 1018) {
+  if (input.pressureDelta24h > 3) {
     return {
-      score: 70,
-      impact: 'neutral',
-      message: 'Нормальний стабільний тиск дає передбачувані, але не пікові умови'
+      score: -20,
+      insights: [
+        {
+          factor: 'Тиск',
+          impact: 'negative',
+          message: `Тиск зростає на ${input.pressureDelta24h} hPa за 24 год: короп може піднятися в товщу води (-20)`
+        }
+      ]
+    };
+  }
+
+  if (Math.abs(input.pressureDelta48h) < 2) {
+    return {
+      score: 10,
+      insights: [
+        {
+          factor: 'Тиск',
+          impact: 'positive',
+          message: `Стабільний тиск за 48 год (${input.pressureDelta48h} hPa): риба тримає передбачуваний маршрут (+10)`
+        }
+      ]
     };
   }
 
   return {
-    score: 50,
-    impact: 'neutral',
-    message: 'Тиск у перехідній зоні, варто перевіряти кілька типів презентації'
+    score: 0,
+    insights: [
+      {
+        factor: 'Тиск',
+        impact: 'neutral',
+        message: `Тиск у перехідній фазі (${input.pressureDelta24h} hPa за 24 год): без сильного бонусу`
+      }
+    ]
   };
 }
 
-function scoreWind(windDirection: string, windSpeedKmh: number): FactorScore {
-  let baseScore = 20;
-  let impact: ActivityImpact = 'negative';
-  let message = `${windDirection} вітер часто охолоджує сектор і знижує активність`;
+function calculateBaseScore(input: ActivityInput): BaseScoreResult {
+  const temperature = getTemperatureBaseScore(input.temperatureC);
+  const pressure = getPressureBonus(input);
 
-  if (windDirection === 'S' || windDirection === 'SW' || windDirection === 'W') {
-    baseScore = 100;
-    impact = 'positive';
-    message = `${windDirection} вітер (${windSpeedKmh} км/г) штовхає теплу, насичену киснем воду`;
-  } else if (windDirection === 'NW' || windDirection === 'SE') {
-    baseScore = 60;
-    impact = 'neutral';
-    message = `${windDirection} вітер (${windSpeedKmh} км/г) дає помірний ефект для сектору`;
+  return {
+    score: clampScore(temperature.score + pressure.score),
+    insights: [...temperature.insights, ...pressure.insights]
+  };
+}
+
+function getWindDirectionMultiplier(input: ActivityInput): MultiplierResult {
+  const warmWind = input.windDirection === 'S' || input.windDirection === 'SW' || input.windDirection === 'W';
+  const coldWind = input.windDirection === 'N' || input.windDirection === 'E' || input.windDirection === 'NE';
+
+  if (warmWind) {
+    return {
+      value: 1.1,
+      insight: {
+        factor: 'Напрям вітру',
+        impact: 'positive',
+        message: `${input.windDirection} вітер приносить теплішу, кисневу воду (+10%)`
+      }
+    };
   }
 
+  if (coldWind && input.season === 'summer') {
+    return {
+      value: 1,
+      insight: {
+        factor: 'Напрям вітру',
+        impact: 'neutral',
+        message: `${input.windDirection} вітер влітку нейтральний: охолодження може навіть допомогти (0%)`
+      }
+    };
+  }
+
+  if (coldWind && (input.season === 'spring' || input.season === 'winter')) {
+    return {
+      value: 0.8,
+      insight: {
+        factor: 'Напрям вітру',
+        impact: 'negative',
+        message: `${input.windDirection} вітер у холодний сезон зупиняє прогрів води (-20%)`
+      }
+    };
+  }
+
+  if (coldWind) {
+    return {
+      value: 0.9,
+      insight: {
+        factor: 'Напрям вітру',
+        impact: 'negative',
+        message: `${input.windDirection} вітер восени часто охолоджує сектор (-10%)`
+      }
+    };
+  }
+
+  return {
+    value: 1,
+    insight: {
+      factor: 'Напрям вітру',
+      impact: 'neutral',
+      message: `${input.windDirection} вітер без сильного сезонного ефекту (0%)`
+    }
+  };
+}
+
+function getWindSpeedMultiplier(windSpeedKmh: number): MultiplierResult {
   if (windSpeedKmh >= 10 && windSpeedKmh <= 25) {
     return {
-      score: clampScore(baseScore * 1.2),
-      impact,
-      message: `${message}; швидкість створює корисну хвилю`
+      value: 1.15,
+      insight: {
+        factor: 'Сила вітру',
+        impact: 'positive',
+        message: `${windSpeedKmh} км/г створює правильну хвилю та додає кисень (+15%)`
+      }
     };
   }
 
-  if (windSpeedKmh < 3) {
+  if (windSpeedKmh < 5) {
     return {
-      score: clampScore(baseScore * 0.7),
-      impact: impact === 'positive' ? 'neutral' : impact,
-      message: `${message}; штиль робить рибу обережнішою`
+      value: 0.9,
+      insight: {
+        factor: 'Сила вітру',
+        impact: 'negative',
+        message: `${windSpeedKmh} км/г: штиль робить рибу обережнішою (-10%)`
+      }
     };
   }
 
-  return { score: baseScore, impact, message };
+  return {
+    value: 1,
+    insight: {
+      factor: 'Сила вітру',
+      impact: 'neutral',
+      message: `${windSpeedKmh} км/г: робоча швидкість без додаткового множника (0%)`
+    }
+  };
 }
 
-function scoreSky(cloudCoverPercent: number, rainMm: number): FactorScore {
-  let score = 30;
-  let impact: ActivityImpact = 'negative';
-  let message = 'Ясне небо робить рибу обережною на мілководді';
-
-  if (cloudCoverPercent > 60) {
-    score = 100;
-    impact = 'positive';
-    message = 'Хмарність понад 60% знижує світловий пресинг і додає впевненості рибі';
-  } else if (cloudCoverPercent >= 30) {
-    score = 70;
-    impact = 'neutral';
-    message = 'Помірна хмарність дає збалансовані умови для пошуку риби';
+function getLightMultiplier(cloudCoverPercent: number, precipitationMm: number): MultiplierResult {
+  if (cloudCoverPercent > 60 || (precipitationMm > 0 && precipitationMm < 2)) {
+    return {
+      value: 1.1,
+      insight: {
+        factor: 'Світло',
+        impact: 'positive',
+        message: `Хмарність ${cloudCoverPercent}% або слабкі опади ${precipitationMm} мм знижують видимість (+10%)`
+      }
+    };
   }
 
-  if (rainMm > 0 && rainMm < 2) {
-    score = clampScore(score + 20);
-    impact = 'positive';
-    message = `${message}; слабкий дощ додає кисень і маскує шум`;
+  if (cloudCoverPercent < 20) {
+    return {
+      value: 0.85,
+      insight: {
+        factor: 'Світло',
+        impact: 'negative',
+        message: `Ясне небо (${cloudCoverPercent}%) робить рибу обережною на мілководді (-15%)`
+      }
+    };
   }
 
-  return { score, impact, message };
+  return {
+    value: 1,
+    insight: {
+      factor: 'Світло',
+      impact: 'neutral',
+      message: `Хмарність ${cloudCoverPercent}% дає нейтральне освітлення (0%)`
+    }
+  };
 }
 
-function getRecommendation(pressureScore: FactorScore): string {
-  if (pressureScore.score <= 20) {
-    return 'Високий тиск: короп може стояти в товщі води. Спробуйте Zig-Rig або середній горизонт.';
+function getMoonMultiplier(moonPhaseAgeDays: number): MultiplierResult {
+  const isNewMoonWindow = moonPhaseAgeDays <= 2 || moonPhaseAgeDays >= 27.53;
+  const isFullMoonWindow = Math.abs(moonPhaseAgeDays - 14.77) <= 2;
+
+  if (isNewMoonWindow) {
+    return {
+      value: 1.1,
+      insight: {
+        factor: 'Місяць',
+        impact: 'positive',
+        message: 'Новий місяць: темна ніч додає впевненості нічному харчуванню (+10%)'
+      }
+    };
   }
 
-  if (pressureScore.score >= 100) {
-    return 'Низький тиск: короп імовірно впевнено харчується з дна. Фокус на гравій, глину або живий мул.';
+  if (isFullMoonWindow) {
+    return {
+      value: 0.9,
+      insight: {
+        factor: 'Місяць',
+        impact: 'negative',
+        message: 'Повня: яскраві ночі можуть робити рибу обережнішою (-10%)'
+      }
+    };
   }
 
-  return 'Умови змішані: почніть з донної точки, але тримайте запасний варіант у товщі води.';
+  return {
+    value: 1,
+    insight: {
+      factor: 'Місяць',
+      impact: 'neutral',
+      message: 'Фаза місяця без сильного множника для поточних умов (0%)'
+    }
+  };
+}
+
+function getRecommendation(input: ActivityInput): string {
+  if (input.pressureTrend === 'rising') {
+    return 'Тиск зростає. Короп може піднятися в товщу води. Спробуйте Zig-Rig або мілководдя.';
+  }
+
+  if (input.season === 'summer' && input.temperatureC > 23) {
+    return 'Вода перегріта. Риба шукає кисень. Шукайте тінь, водорості або ловіть вночі.';
+  }
+
+  if (input.pressureTrend === 'falling') {
+    return 'Тиск падає! Ідеальний час для донного харчування. Використовуйте донні монтажі на твердому дні.';
+  }
+
+  return 'Стабільні умови. Шукайте природні маршрути риби: бровки, переходи на мул і тверді плями.';
 }
 
 export function calculateCarpActivity(input: ActivityInput): ActivityReport {
-  const temperature = scoreTemperature(input.temperatureC);
-  const pressure = scorePressure(input.pressureHpa, input.pressureTrend, input.pressureDelta12h);
-  const wind = scoreWind(input.windDirection, input.windSpeedKmh);
-  const sky = scoreSky(input.cloudCoverPercent, input.rainMm);
-  const score = clampScore(
-    temperature.score * WEIGHTS.temperature +
-      pressure.score * WEIGHTS.pressure +
-      wind.score * WEIGHTS.wind +
-      sky.score * WEIGHTS.sky
-  );
+  const baseScore = calculateBaseScore(input);
+  const multipliers = [
+    getWindDirectionMultiplier(input),
+    getWindSpeedMultiplier(input.windSpeedKmh),
+    getLightMultiplier(input.cloudCoverPercent, input.precipitationMm),
+    getMoonMultiplier(input.moonPhaseAgeDays)
+  ];
+  const multiplier = multipliers.reduce((total, item) => total * item.value, 1);
+  const score = clampScore(baseScore.score * multiplier);
 
   return {
     score,
     rating: getRating(score),
-    recommendation: getRecommendation(pressure),
-    insights: [
-      { factor: 'Температура', impact: temperature.impact, message: temperature.message },
-      { factor: 'Тиск', impact: pressure.impact, message: pressure.message },
-      { factor: 'Вітер', impact: wind.impact, message: wind.message },
-      { factor: 'Небо', impact: sky.impact, message: sky.message }
-    ]
+    recommendation: getRecommendation(input),
+    insights: [...baseScore.insights, ...multipliers.map((item) => item.insight)]
   };
 }
 

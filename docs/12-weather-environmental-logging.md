@@ -13,10 +13,10 @@ https://api.open-meteo.com/v1/forecast
 Параметри:
 
 ```txt
-current=temperature_2m,pressure_msl,wind_speed_10m,wind_direction_10m,cloud_cover,rain
+current=temperature_2m,pressure_msl,wind_speed_10m,wind_direction_10m,cloud_cover,precipitation
 hourly=pressure_msl
 daily=sunrise,sunset
-past_hours=24
+past_hours=48
 forecast_hours=1
 timezone=auto
 ```
@@ -25,15 +25,16 @@ timezone=auto
 
 ## Pressure trend
 
-Поточний `pressure_msl` порівнюється з найближчим hourly значенням 12 годин тому всередині 24-годинного історичного масиву:
+Поточний `pressure_msl` порівнюється з найближчими hourly значеннями 24 і 48 годин тому:
 
 ```ts
-current - past < -2 hPa -> falling
-current - past > 2 hPa -> rising
-else -> steady
+delta24h < -3 hPa -> falling
+delta24h > 3 hPa -> rising
+abs(delta48h) < 2 hPa -> steady
+else -> довший 48h тренд
 ```
 
-Зміни в межах `2 hPa` вважаються `steady`, щоб не реагувати на погодний шум.
+Чому так: короткий 24h імпульс показує різкий фронт, а 48h delta відсікає шум і дає стабільніший контекст.
 
 ## Wind direction
 
@@ -61,7 +62,7 @@ weather: weather ? { ...weather } : null
 
 Чому так: погода має бути зафіксована саме на момент створення точки, а не перераховуватись заднім числом. `markersById` входить у `persist.partialize`, тому цей snapshot автоматично потрапляє в LocalStorage разом із міткою.
 
-## Fish activity insight
+## Carp Activity Engine 2.0
 
 `CarpActivityEngine` повертає не одну строку, а структурований report:
 
@@ -78,44 +79,57 @@ interface ActivityReport {
 }
 ```
 
-Weighted formula:
+Стара лінійна формула замінена на expert-system:
 
 ```txt
-TotalScore =
-  0.30 * TemperatureScore +
-  0.35 * PressureScore +
-  0.25 * WindScore +
-  0.10 * SkyScore
+FinalScore = clamp(
+  BaseScore *
+  WindDirectionMultiplier *
+  WindSpeedMultiplier *
+  LightMultiplier *
+  MoonMultiplier,
+  0,
+  100
+)
 ```
 
-Rules:
+### Base score
 
 ```txt
 Temperature:
 12-18°C -> 100
-8-12°C або 18-24°C -> 70
+18-23°C -> 80
+8-12°C -> 60
 <8°C або >24°C -> 30
 
 Pressure:
-falling >2 hPa за 12h або <1012 hPa -> 100
-1012-1018 hPa stable -> 70
-rising >2 hPa або >1020 hPa -> 20
-
-Wind:
-S/SW/W -> 100
-NW/SE -> 60
-N/E/NE -> 20
-10-25 км/г -> x1.2, capped at 100
-<3 км/г -> x0.7
-
-Sky:
-clouds >60% -> 100
-clouds 30-60% -> 70
-clouds <30% -> 30
-minor rain <2 мм/г -> +20 bonus
+delta24h < -3 hPa -> +20
+abs(delta48h) < 2 hPa -> +10
+delta24h > 3 hPa -> -20
 ```
 
-UI показує круговий score, український badge і розкривний `Розбір активності` з поясненням кожного фактора.
+### Contextual multipliers
+
+Wind:
+S/SW/W -> x1.1
+N/E/NE влітку -> x1.0
+N/E/NE навесні або взимку -> x0.8
+N/E/NE восени -> x0.9
+
+Wind speed:
+10-25 км/г -> x1.15
+<5 км/г -> x0.9
+
+Light:
+clouds >60% або precipitation <2 мм -> x1.1
+clouds <20% -> x0.85
+
+Moon:
+new moon +/- 2 дні -> x1.1
+full moon +/- 2 дні -> x0.9
+```
+
+UI показує круговий score, український badge і розкривний `Розбір активності` з поясненням кожного фактора. Повідомлення мають формат `+10%`, `-20%` або `0%`, щоб рибалка бачив, що саме підняло або знизило оцінку.
 
 Це не “AI prediction”, а прозора польова підказка на базі common carp fishing heuristics.
 

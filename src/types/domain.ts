@@ -9,6 +9,8 @@ export type DistanceInputMode = 'meters' | 'wraps';
 
 export type PressureTrend = 'falling' | 'rising' | 'steady';
 
+export type Season = 'spring' | 'summer' | 'autumn' | 'winter';
+
 export type ActivityImpact = 'positive' | 'negative' | 'neutral';
 
 export type ActivityRating = 'Excellent' | 'Good' | 'Fair' | 'Tough';
@@ -30,14 +32,17 @@ export interface WeatherSnapshot {
   temperatureC: number;
   pressureHpa: number;
   pressureTrend: PressureTrend;
-  pressureDelta12h: number;
+  pressureDelta24h: number;
+  pressureDelta48h: number;
   windSpeedKmh: number;
   windDirectionDegrees: number;
   windDirection: string;
   cloudCoverPercent: number;
-  rainMm: number;
+  precipitationMm: number;
   moonPhaseIcon: string;
   moonPhaseLabel: string;
+  moonPhaseAgeDays: number;
+  season: Season;
   sunrise: string | null;
   sunset: string | null;
   activityBadge: string;

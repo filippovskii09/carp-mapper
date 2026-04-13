@@ -1,5 +1,5 @@
 import { calculateCarpActivity, getActivityBadge } from '@/features/weather/CarpActivityEngine';
-import type { PressureTrend, WeatherSnapshot } from '@/types/domain';
+import type { PressureTrend, Season, WeatherSnapshot } from '@/types/domain';
 
 interface OpenMeteoResponse {
   current?: {
@@ -9,7 +9,7 @@ interface OpenMeteoResponse {
     wind_speed_10m?: number;
     wind_direction_10m?: number;
     cloud_cover?: number;
-    rain?: number;
+    precipitation?: number;
   };
   hourly?: {
     time?: string[];
@@ -34,14 +34,20 @@ function round(value: number, precision = 1): number {
   return Math.round(value * factor) / factor;
 }
 
-export function getPressureTrend(currentPressure: number, pastPressure: number): PressureTrend {
-  const delta = currentPressure - pastPressure;
+export function getPressureTrend(delta24h: number, delta48h: number): PressureTrend {
+  if (delta24h < -3) {
+    return 'falling';
+  }
 
-  if (Math.abs(delta) <= 2) {
+  if (delta24h > 3) {
+    return 'rising';
+  }
+
+  if (Math.abs(delta48h) < 2) {
     return 'steady';
   }
 
-  return delta < 0 ? 'falling' : 'rising';
+  return delta48h < 0 ? 'falling' : 'rising';
 }
 
 export function getCardinalWindDirection(degrees: number): string {
@@ -51,40 +57,61 @@ export function getCardinalWindDirection(degrees: number): string {
   return CARDINAL_DIRECTIONS[index];
 }
 
-export function getMoonPhase(timestamp: number): Pick<WeatherSnapshot, 'moonPhaseIcon' | 'moonPhaseLabel'> {
+export function getMoonPhase(
+  timestamp: number
+): Pick<WeatherSnapshot, 'moonPhaseIcon' | 'moonPhaseLabel' | 'moonPhaseAgeDays'> {
   const daysSinceKnownNewMoon = (timestamp - KNOWN_NEW_MOON_UTC) / 86_400_000;
   const phase = ((daysSinceKnownNewMoon % SYNODIC_MONTH_DAYS) + SYNODIC_MONTH_DAYS) % SYNODIC_MONTH_DAYS;
   const phaseRatio = phase / SYNODIC_MONTH_DAYS;
+  const moonPhaseAgeDays = round(phase);
 
   if (phaseRatio < 0.0625 || phaseRatio >= 0.9375) {
-    return { moonPhaseIcon: '🌑', moonPhaseLabel: 'Новий місяць' };
+    return { moonPhaseIcon: '🌑', moonPhaseLabel: 'Новий місяць', moonPhaseAgeDays };
   }
 
   if (phaseRatio < 0.1875) {
-    return { moonPhaseIcon: '🌒', moonPhaseLabel: 'Молодий місяць' };
+    return { moonPhaseIcon: '🌒', moonPhaseLabel: 'Молодий місяць', moonPhaseAgeDays };
   }
 
   if (phaseRatio < 0.3125) {
-    return { moonPhaseIcon: '🌓', moonPhaseLabel: 'Перша чверть' };
+    return { moonPhaseIcon: '🌓', moonPhaseLabel: 'Перша чверть', moonPhaseAgeDays };
   }
 
   if (phaseRatio < 0.4375) {
-    return { moonPhaseIcon: '🌔', moonPhaseLabel: 'Зростаючий місяць' };
+    return { moonPhaseIcon: '🌔', moonPhaseLabel: 'Зростаючий місяць', moonPhaseAgeDays };
   }
 
   if (phaseRatio < 0.5625) {
-    return { moonPhaseIcon: '🌕', moonPhaseLabel: 'Повня' };
+    return { moonPhaseIcon: '🌕', moonPhaseLabel: 'Повня', moonPhaseAgeDays };
   }
 
   if (phaseRatio < 0.6875) {
-    return { moonPhaseIcon: '🌖', moonPhaseLabel: 'Спадний місяць' };
+    return { moonPhaseIcon: '🌖', moonPhaseLabel: 'Спадний місяць', moonPhaseAgeDays };
   }
 
   if (phaseRatio < 0.8125) {
-    return { moonPhaseIcon: '🌗', moonPhaseLabel: 'Остання чверть' };
+    return { moonPhaseIcon: '🌗', moonPhaseLabel: 'Остання чверть', moonPhaseAgeDays };
   }
 
-  return { moonPhaseIcon: '🌘', moonPhaseLabel: 'Старий місяць' };
+  return { moonPhaseIcon: '🌘', moonPhaseLabel: 'Старий місяць', moonPhaseAgeDays };
+}
+
+export function getSeason(timestamp: number): Season {
+  const month = new Date(timestamp).getMonth() + 1;
+
+  if (month >= 3 && month <= 5) {
+    return 'spring';
+  }
+
+  if (month >= 6 && month <= 8) {
+    return 'summer';
+  }
+
+  if (month >= 9 && month <= 11) {
+    return 'autumn';
+  }
+
+  return 'winter';
 }
 
 function getHistoricalPressure(response: OpenMeteoResponse, currentTimestamp: number, lookbackHours: number): number {
@@ -125,10 +152,10 @@ export async function fetchWeatherSnapshot(
   const params = new URLSearchParams({
     latitude: String(lat),
     longitude: String(lng),
-    current: 'temperature_2m,pressure_msl,wind_speed_10m,wind_direction_10m,cloud_cover,rain',
+    current: 'temperature_2m,pressure_msl,wind_speed_10m,wind_direction_10m,cloud_cover,precipitation',
     hourly: 'pressure_msl',
     daily: 'sunrise,sunset',
-    past_hours: '24',
+    past_hours: '48',
     forecast_hours: '1',
     timezone: 'auto'
   });
@@ -148,25 +175,31 @@ export async function fetchWeatherSnapshot(
   }
 
   const timestamp = current.time ? Date.parse(current.time) : Date.now();
-  const pastPressure = getHistoricalPressure(data, timestamp, 12);
-  const pressureDelta12h = round(current.pressure_msl - pastPressure);
-  const pressureTrend = getPressureTrend(current.pressure_msl, pastPressure);
+  const pastPressure24h = getHistoricalPressure(data, timestamp, 24);
+  const pastPressure48h = getHistoricalPressure(data, timestamp, 48);
+  const pressureDelta24h = round(current.pressure_msl - pastPressure24h);
+  const pressureDelta48h = round(current.pressure_msl - pastPressure48h);
+  const pressureTrend = getPressureTrend(pressureDelta24h, pressureDelta48h);
   const windDirection = getCardinalWindDirection(current.wind_direction_10m ?? 0);
   const moonPhase = getMoonPhase(timestamp);
+  const season = getSeason(timestamp);
   const temperatureC = round(current.temperature_2m);
   const pressureHpa = round(current.pressure_msl);
   const windSpeedKmh = round(current.wind_speed_10m ?? 0);
   const cloudCoverPercent = Math.round(current.cloud_cover ?? 0);
-  const rainMm = round(current.rain ?? 0);
+  const precipitationMm = round(current.precipitation ?? 0);
   const activityReport = calculateCarpActivity({
     temperatureC,
     pressureHpa,
     pressureTrend,
-    pressureDelta12h,
+    pressureDelta24h,
+    pressureDelta48h,
     windDirection,
     windSpeedKmh,
     cloudCoverPercent,
-    rainMm
+    precipitationMm,
+    moonPhaseAgeDays: moonPhase.moonPhaseAgeDays,
+    season
   });
 
   return {
@@ -174,13 +207,15 @@ export async function fetchWeatherSnapshot(
       temperatureC,
       pressureHpa,
       pressureTrend,
-      pressureDelta12h,
+      pressureDelta24h,
+      pressureDelta48h,
       windSpeedKmh,
       windDirectionDegrees: Math.round(current.wind_direction_10m ?? 0),
       windDirection,
       cloudCoverPercent,
-      rainMm,
+      precipitationMm,
       ...moonPhase,
+      season,
       sunrise: data.daily?.sunrise?.[0] ?? null,
       sunset: data.daily?.sunset?.[0] ?? null,
       activityBadge: getActivityBadge(activityReport),

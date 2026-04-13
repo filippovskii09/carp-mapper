@@ -96,7 +96,7 @@ export function CurrentConditionsWidget() {
           </div>
           <p className="mt-2 truncate text-xs text-muted-foreground">
             {weather.windDirection} · {weather.windSpeedKmh} км/г · хмари {weather.cloudCoverPercent}% · дощ{' '}
-            {weather.rainMm} мм/г
+            {weather.precipitationMm} мм/г
           </p>
           <p className="mt-1 truncate text-xs text-muted-foreground">
             {weather.moonPhaseIcon} {weather.moonPhaseLabel}
