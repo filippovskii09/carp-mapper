@@ -7,6 +7,20 @@ export type BottomStructure = 'mud' | 'sand' | 'gravel' | 'clay' | 'weed';
 
 export type DistanceInputMode = 'meters' | 'wraps';
 
+export type PressureTrend = 'falling' | 'rising' | 'steady';
+
+export interface WeatherSnapshot {
+  temperatureC: number;
+  pressureHpa: number;
+  pressureTrend: PressureTrend;
+  windSpeedKmh: number;
+  windDirectionDegrees: number;
+  windDirection: string;
+  cloudCoverPercent: number;
+  activityBadge: string;
+  timestamp: number;
+}
+
 export interface WrapDistance {
   wraps: number;
   remainderMeters: number;
@@ -33,6 +47,7 @@ export interface FishingMarker {
   azimuth: number;
   depth: number;
   structure: BottomStructure;
+  weather: WeatherSnapshot | null;
   coords: [number, number];
   timestamp: number;
 }
@@ -82,10 +97,12 @@ export interface MapStore {
   markerDraft: MarkerFormDraft;
   markerIds: string[];
   markersById: MarkerEntityMap;
+  currentWeather: WeatherSnapshot | null;
   setAnchor: (loc: Location, accuracyMeters?: number | null) => void;
   setAnchorCalibrationState: (isCalibrating: boolean) => void;
   setManualAnchorPlacement: (isPlacing: boolean) => void;
   placeDraftMarker: (loc: Location) => void;
+  setWeatherSnapshot: (weather: WeatherSnapshot | null) => void;
   setMarkerDraftField: <TField extends keyof MarkerFormDraft>(
     field: TField,
     value: MarkerFormDraft[TField]

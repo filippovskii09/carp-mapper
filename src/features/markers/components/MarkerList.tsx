@@ -67,6 +67,12 @@ export const MarkerList = memo(function MarkerList() {
                       {marker.horizonMarker}
                     </p>
                   ) : null}
+                  {marker.weather ? (
+                    <p className="mt-1 truncate text-xs text-muted-foreground">
+                      {marker.weather.temperatureC}° · {marker.weather.pressureHpa} hPa ·{' '}
+                      {marker.weather.windDirection}
+                    </p>
+                  ) : null}
                   <p className="mt-1 text-xs text-muted-foreground">{formatTime(marker.timestamp)}</p>
                 </div>
                 <Button

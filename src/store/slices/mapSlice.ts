@@ -1,7 +1,14 @@
 import type { StateCreator } from 'zustand';
 import { getDefaultPegDistanceMeters } from '@/services/DistanceService';
 import { geoService } from '@/services/GeoService';
-import type { FishingMarker, Location, MapStore, MarkerDraft, MarkerFormDraft } from '@/types/domain';
+import type {
+  FishingMarker,
+  Location,
+  MapStore,
+  MarkerDraft,
+  MarkerFormDraft,
+  WeatherSnapshot
+} from '@/types/domain';
 
 const initialMarkerDraft: MarkerFormDraft = {
   name: '',
@@ -37,6 +44,7 @@ export const createMapSlice: StateCreator<MapStore, [], [], MapStore> = (set, ge
   markerDraft: initialMarkerDraft,
   markerIds: [],
   markersById: {},
+  currentWeather: null,
   setAnchor: (loc: Location, accuracyMeters: number | null = null) => {
     set((state) => ({
       anchor: loc,
@@ -72,6 +80,9 @@ export const createMapSlice: StateCreator<MapStore, [], [], MapStore> = (set, ge
         wrapRemainder: '0'
       }
     }));
+  },
+  setWeatherSnapshot: (weather: WeatherSnapshot | null) => {
+    set({ currentWeather: weather });
   },
   setMarkerDraftField: (field, value) => {
     set((state) => ({
@@ -129,6 +140,7 @@ export const createMapSlice: StateCreator<MapStore, [], [], MapStore> = (set, ge
     const marker: FishingMarker = {
       ...draft,
       id,
+      weather: get().currentWeather,
       coords: geoService.calculateDestination(anchor, draft.distance, draft.azimuth),
       timestamp: Date.now()
     };
@@ -161,6 +173,7 @@ export const createMapSlice: StateCreator<MapStore, [], [], MapStore> = (set, ge
           [id]: {
             ...currentMarker,
             ...draft,
+            weather: get().currentWeather ?? currentMarker.weather ?? null,
             coords: geoService.calculateDestination(anchor, draft.distance, draft.azimuth)
           }
         }

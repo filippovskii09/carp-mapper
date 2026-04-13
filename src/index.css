@@ -270,6 +270,20 @@
   font-size: 0.8rem;
 }
 
+.weather-widget {
+  position: absolute;
+  top: calc(8.85rem + env(safe-area-inset-top));
+  right: max(0.85rem, env(safe-area-inset-right));
+  z-index: 12;
+  width: min(14rem, calc(100vw - 1.7rem));
+  border: 1px solid hsl(var(--border));
+  border-radius: 8px;
+  background: hsl(var(--background) / 0.88);
+  padding: 0.7rem;
+  box-shadow: 0 14px 40px rgb(0 0 0 / 0.34);
+  backdrop-filter: blur(16px);
+}
+
 .mapboxgl-ctrl-bottom-left,
 .mapboxgl-ctrl-bottom-right {
   margin-bottom: calc(13.5rem + env(safe-area-inset-bottom));
@@ -298,6 +312,11 @@
     top: 1rem;
     right: 1rem;
     width: 6.8rem;
+  }
+
+  .weather-widget {
+    top: 8.9rem;
+    right: 1rem;
   }
 }
 
