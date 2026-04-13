@@ -1,5 +1,6 @@
 import { calculateCarpActivity, getActivityBadge } from '@/features/weather/CarpActivityEngine';
-import type { PressureTrend, Season, WeatherSnapshot } from '@/types/domain';
+import { calculateSolunarWindows, getActiveSolunarPeriod } from '@/features/weather/solunarService';
+import type { PressureTrend, Season, WaterStatus, WeatherSnapshot } from '@/types/domain';
 
 interface OpenMeteoResponse {
   current?: {
@@ -13,6 +14,7 @@ interface OpenMeteoResponse {
   };
   hourly?: {
     time?: string[];
+    temperature_2m?: number[];
     pressure_msl?: number[];
   };
   daily?: {
@@ -32,6 +34,10 @@ const KNOWN_NEW_MOON_UTC = Date.UTC(2000, 0, 6, 18, 14);
 function round(value: number, precision = 1): number {
   const factor = 10 ** precision;
   return Math.round(value * factor) / factor;
+}
+
+function getFiniteHourlyValues(values: number[] | undefined): number[] {
+  return values?.filter((value) => Number.isFinite(value)) ?? [];
 }
 
 export function getPressureTrend(delta24h: number, delta48h: number): PressureTrend {
@@ -144,6 +150,59 @@ function getHistoricalPressure(response: OpenMeteoResponse, currentTimestamp: nu
   return closestPressure;
 }
 
+export function calculateWaterTempProxy(hourlyTemperatures: number[]): number {
+  const temperatures = getFiniteHourlyValues(hourlyTemperatures).slice(-72);
+
+  if (temperatures.length === 0) {
+    return 0;
+  }
+
+  const recent24h = temperatures.slice(-24);
+  const previous48h = temperatures.slice(0, Math.max(0, temperatures.length - 24));
+  const recentAverage = recent24h.reduce((sum, value) => sum + value, 0) / recent24h.length;
+
+  if (previous48h.length === 0) {
+    return round(recentAverage);
+  }
+
+  const previousAverage = previous48h.reduce((sum, value) => sum + value, 0) / previous48h.length;
+
+  return round(recentAverage * 0.65 + previousAverage * 0.35);
+}
+
+function calculateWaterTempDelta24h(hourlyTemperatures: number[]): number {
+  const temperatures = getFiniteHourlyValues(hourlyTemperatures).slice(-72);
+
+  if (temperatures.length < 48) {
+    return 0;
+  }
+
+  const currentProxy = calculateWaterTempProxy(temperatures);
+  const previousProxy = calculateWaterTempProxy(temperatures.slice(0, -24));
+
+  return round(currentProxy - previousProxy);
+}
+
+function getWaterStatus(waterTempProxyC: number, waterTempDelta24h: number): WaterStatus {
+  if (waterTempProxyC > 25) {
+    return 'overheated';
+  }
+
+  if (waterTempDelta24h > 0.8) {
+    return 'warming';
+  }
+
+  if (waterTempDelta24h < -0.8) {
+    return 'cooling';
+  }
+
+  return 'stable';
+}
+
+async function fetchKpIndex(): Promise<number> {
+  return 2;
+}
+
 export async function fetchWeatherSnapshot(
   lat: number,
   lng: number,
@@ -153,9 +212,9 @@ export async function fetchWeatherSnapshot(
     latitude: String(lat),
     longitude: String(lng),
     current: 'temperature_2m,pressure_msl,wind_speed_10m,wind_direction_10m,cloud_cover,precipitation',
-    hourly: 'pressure_msl',
+    hourly: 'temperature_2m,pressure_msl',
     daily: 'sunrise,sunset',
-    past_hours: '48',
+    past_days: '3',
     forecast_hours: '1',
     timezone: 'auto'
   });
@@ -188,8 +247,16 @@ export async function fetchWeatherSnapshot(
   const windSpeedKmh = round(current.wind_speed_10m ?? 0);
   const cloudCoverPercent = Math.round(current.cloud_cover ?? 0);
   const precipitationMm = round(current.precipitation ?? 0);
+  const waterTempProxyC = calculateWaterTempProxy(data.hourly?.temperature_2m ?? [temperatureC]);
+  const waterTempDelta24h = calculateWaterTempDelta24h(data.hourly?.temperature_2m ?? []);
+  const waterStatus = getWaterStatus(waterTempProxyC, waterTempDelta24h);
+  const solunarWindows = calculateSolunarWindows(timestamp, moonPhase.moonPhaseAgeDays);
+  const activeSolunarPeriod = getActiveSolunarPeriod(solunarWindows);
+  const kpIndex = await fetchKpIndex();
   const activityReport = calculateCarpActivity({
     temperatureC,
+    waterTempProxyC,
+    waterTempDelta24h,
     pressureHpa,
     pressureTrend,
     pressureDelta24h,
@@ -199,12 +266,17 @@ export async function fetchWeatherSnapshot(
     cloudCoverPercent,
     precipitationMm,
     moonPhaseAgeDays: moonPhase.moonPhaseAgeDays,
-    season
+    season,
+    activeSolunarPeriod,
+    kpIndex
   });
 
   return {
     snapshot: {
       temperatureC,
+      waterTempProxyC,
+      waterTempDelta24h,
+      waterStatus,
       pressureHpa,
       pressureTrend,
       pressureDelta24h,
@@ -216,6 +288,9 @@ export async function fetchWeatherSnapshot(
       precipitationMm,
       ...moonPhase,
       season,
+      kpIndex,
+      solunarWindows,
+      activeSolunarPeriod,
       sunrise: data.daily?.sunrise?.[0] ?? null,
       sunset: data.daily?.sunset?.[0] ?? null,
       activityBadge: getActivityBadge(activityReport),

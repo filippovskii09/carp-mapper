@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { useWeather } from '@/features/weather/hooks/useWeather';
 import { useMapStore } from '@/store';
 import type { CSSProperties } from 'react';
-import type { ActivityImpact, PressureTrend } from '@/types/domain';
+import type { ActivityImpact, PressureTrend, WaterStatus } from '@/types/domain';
 
 function getTrendArrow(trend: PressureTrend): string {
   if (trend === 'falling') {
@@ -42,6 +42,22 @@ function getRatingLabel(rating: string): string {
   }
 
   return 'Важко';
+}
+
+function getWaterStatusLabel(status: WaterStatus): string {
+  if (status === 'warming') {
+    return 'Прогрівається';
+  }
+
+  if (status === 'cooling') {
+    return 'Остигає';
+  }
+
+  if (status === 'overheated') {
+    return 'Перегріта';
+  }
+
+  return 'Стабільна';
 }
 
 export function CurrentConditionsWidget() {
@@ -101,9 +117,28 @@ export function CurrentConditionsWidget() {
           <p className="mt-1 truncate text-xs text-muted-foreground">
             {weather.moonPhaseIcon} {weather.moonPhaseLabel}
           </p>
+          <p className="mt-1 truncate text-xs text-muted-foreground">
+            Статус водойми: {getWaterStatusLabel(weather.waterStatus)} · WTP {weather.waterTempProxyC}° (
+            {weather.waterTempDelta24h > 0 ? '+' : ''}
+            {weather.waterTempDelta24h}°/24г)
+          </p>
           <p className="mt-2 rounded-md bg-muted/60 px-2 py-1 text-xs font-semibold text-foreground">
             {weather.activityBadge}
           </p>
+
+          <section className="solunar-panel mt-2" aria-label="Тактичні вікна Solunar">
+            <p className="text-xs font-bold text-foreground">Тактичні вікна (Solunar)</p>
+            <ul className="mt-1 space-y-1">
+              {weather.solunarWindows.map((window) => (
+                <li
+                  key={`${window.type}-${window.peak}`}
+                  className={`text-xs ${window.isActive ? 'font-semibold text-primary' : 'text-muted-foreground'}`}
+                >
+                  🎣 {window.label}: {window.start} - {window.end}
+                </li>
+              ))}
+            </ul>
+          </section>
 
           <details className="activity-breakdown mt-2">
             <summary>Розбір активності</summary>

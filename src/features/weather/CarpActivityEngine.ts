@@ -2,6 +2,8 @@ import type { ActivityRating, ActivityReport, PressureTrend, Season } from '@/ty
 
 interface ActivityInput {
   temperatureC: number;
+  waterTempProxyC: number;
+  waterTempDelta24h: number;
   pressureHpa: number;
   pressureTrend: PressureTrend;
   pressureDelta24h: number;
@@ -12,6 +14,8 @@ interface ActivityInput {
   precipitationMm: number;
   moonPhaseAgeDays: number;
   season: Season;
+  activeSolunarPeriod: 'major' | 'minor' | null;
+  kpIndex: number;
 }
 
 interface BaseScoreResult {
@@ -162,13 +166,62 @@ function getPressureBonus(input: ActivityInput): BaseScoreResult {
 }
 
 function calculateBaseScore(input: ActivityInput): BaseScoreResult {
-  const temperature = getTemperatureBaseScore(input.temperatureC);
+  const temperature = getTemperatureBaseScore(input.waterTempProxyC);
   const pressure = getPressureBonus(input);
 
   return {
     score: clampScore(temperature.score + pressure.score),
     insights: [...temperature.insights, ...pressure.insights]
   };
+}
+
+function getBiologicalBlocker(input: ActivityInput): ActivityReport | null {
+  if (input.season === 'summer' && input.waterTempProxyC > 25 && input.windSpeedKmh < 5) {
+    return {
+      score: 15,
+      rating: 'Tough',
+      recommendation: 'Критично низький рівень кисню. Донна ловля майже неефективна: шукайте поверхню, тінь, приплив кисню або нічне вікно.',
+      blocker: 'hypoxia',
+      insights: [
+        {
+          factor: 'Блокер',
+          impact: 'negative',
+          message: 'Критично низький рівень кисню. Риба в комі або на поверхні. Ловля на дні неефективна.'
+        },
+        {
+          factor: 'Статус водойми',
+          impact: 'negative',
+          message: `WTP ${input.waterTempProxyC}°C і вітер ${input.windSpeedKmh} км/г: перегріта вода без хвилі не тримає кисень`
+        }
+      ]
+    };
+  }
+
+  if (
+    (input.season === 'autumn' || input.season === 'spring') &&
+    input.waterTempDelta24h < -4
+  ) {
+    return {
+      score: 20,
+      rating: 'Tough',
+      recommendation: 'Температурний шок. Зменшіть корм, шукайте найстабільніші глибші ділянки і короткі вікна активності.',
+      blocker: 'temperature-shock',
+      insights: [
+        {
+          factor: 'Блокер',
+          impact: 'negative',
+          message: 'Температурний шок. Риба заціпеніла через різке похолодання.'
+        },
+        {
+          factor: 'Статус водойми',
+          impact: 'negative',
+          message: `WTP впала на ${Math.abs(input.waterTempDelta24h)}°C за 24 год: короп економить енергію`
+        }
+      ]
+    };
+  }
+
+  return null;
 }
 
 function getWindDirectionMultiplier(input: ActivityInput): MultiplierResult {
@@ -186,13 +239,13 @@ function getWindDirectionMultiplier(input: ActivityInput): MultiplierResult {
     };
   }
 
-  if (coldWind && input.season === 'summer' && input.temperatureC > 20) {
+  if (coldWind && input.waterTempProxyC > 22 && input.windSpeedKmh >= 10 && input.windSpeedKmh <= 25) {
     return {
-      value: 1.05,
+      value: 1.1,
       insight: {
         factor: 'Напрям вітру',
         impact: 'positive',
-        message: `${input.windDirection} вітер у літню спеку охолоджує воду і підтримує кисень (+5%)`
+        message: `${input.windDirection} вітер охолоджує перегріту воду і вносить кисень (+10%)`
       }
     };
   }
@@ -331,12 +384,45 @@ function getMoonMultiplier(moonPhaseAgeDays: number): MultiplierResult {
   };
 }
 
+function getSolunarMultiplier(activeSolunarPeriod: 'major' | 'minor' | null): MultiplierResult {
+  if (activeSolunarPeriod === 'major') {
+    return {
+      value: 1.25,
+      insight: {
+        factor: 'Solunar',
+        impact: 'positive',
+        message: 'Активне Major-вікно: місячний пік може різко підсилити короткий вихід (+25%)'
+      }
+    };
+  }
+
+  if (activeSolunarPeriod === 'minor') {
+    return {
+      value: 1.15,
+      insight: {
+        factor: 'Solunar',
+        impact: 'positive',
+        message: 'Активне Minor-вікно: короткий період підвищеної активності (+15%)'
+      }
+    };
+  }
+
+  return {
+    value: 1,
+    insight: {
+      factor: 'Solunar',
+      impact: 'neutral',
+      message: 'Зараз поза Major/Minor вікном, Solunar не підсилює оцінку (0%)'
+    }
+  };
+}
+
 function getRecommendation(input: ActivityInput): string {
   if (input.pressureHpa > 1020 || input.pressureTrend === 'rising') {
     return 'Високий тиск: риба піднімається в товщу води. Спробуйте Zig-Rig або ловіть на мілководді.';
   }
 
-  if (input.season === 'summer' && input.temperatureC > 24) {
+  if (input.season === 'summer' && input.waterTempProxyC > 24) {
     return 'Вода перегріта, низький рівень кисню. Шукайте рибу в тіні дерев, водоростях або ловіть вночі.';
   }
 
@@ -352,12 +438,19 @@ function getRecommendation(input: ActivityInput): string {
 }
 
 export function calculateCarpActivity(input: ActivityInput): ActivityReport {
+  const blocker = getBiologicalBlocker(input);
+
+  if (blocker) {
+    return blocker;
+  }
+
   const baseScore = calculateBaseScore(input);
   const multipliers = [
     getWindDirectionMultiplier(input),
     getWindSpeedMultiplier(input.windSpeedKmh),
     getLightMultiplier(input.cloudCoverPercent, input.precipitationMm),
-    getMoonMultiplier(input.moonPhaseAgeDays)
+    getMoonMultiplier(input.moonPhaseAgeDays),
+    getSolunarMultiplier(input.activeSolunarPeriod)
   ];
   const multiplier = multipliers.reduce((total, item) => total * item.value, 1);
   const score = clampScore(baseScore.score * multiplier);
@@ -366,6 +459,7 @@ export function calculateCarpActivity(input: ActivityInput): ActivityReport {
     score,
     rating: getRating(score),
     recommendation: getRecommendation(input),
+    blocker: null,
     insights: [...baseScore.insights, ...multipliers.map((item) => item.insight)]
   };
 }

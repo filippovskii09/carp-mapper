@@ -321,6 +321,12 @@
   font-weight: 700;
 }
 
+.solunar-panel {
+  border-radius: 8px;
+  background: hsl(var(--muted) / 0.34);
+  padding: 0.55rem 0.65rem;
+}
+
 .mapboxgl-ctrl-bottom-left,
 .mapboxgl-ctrl-bottom-right {
   margin-bottom: calc(13.5rem + env(safe-area-inset-bottom));

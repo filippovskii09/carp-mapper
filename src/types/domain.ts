@@ -15,6 +15,19 @@ export type ActivityImpact = 'positive' | 'negative' | 'neutral';
 
 export type ActivityRating = 'Excellent' | 'Good' | 'Fair' | 'Tough';
 
+export type WaterStatus = 'warming' | 'cooling' | 'overheated' | 'stable';
+
+export type SolunarPeriodType = 'major' | 'minor';
+
+export interface SolunarWindow {
+  type: SolunarPeriodType;
+  label: string;
+  start: string;
+  end: string;
+  peak: string;
+  isActive: boolean;
+}
+
 export interface ActivityInsight {
   factor: string;
   impact: ActivityImpact;
@@ -26,10 +39,14 @@ export interface ActivityReport {
   rating: ActivityRating;
   recommendation: string;
   insights: ActivityInsight[];
+  blocker: string | null;
 }
 
 export interface WeatherSnapshot {
   temperatureC: number;
+  waterTempProxyC: number;
+  waterTempDelta24h: number;
+  waterStatus: WaterStatus;
   pressureHpa: number;
   pressureTrend: PressureTrend;
   pressureDelta24h: number;
@@ -43,6 +60,9 @@ export interface WeatherSnapshot {
   moonPhaseLabel: string;
   moonPhaseAgeDays: number;
   season: Season;
+  kpIndex: number;
+  solunarWindows: SolunarWindow[];
+  activeSolunarPeriod: SolunarPeriodType | null;
   sunrise: string | null;
   sunset: string | null;
   activityBadge: string;
