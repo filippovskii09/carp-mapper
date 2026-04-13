@@ -2,6 +2,7 @@ import { memo, useRef } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { mapboxToken } from '@/config/env';
 import { useI18n } from '@/config/i18n';
+import { AzimuthCompass } from '@/features/map/components/AzimuthCompass';
 import { useMapbox } from '@/features/map/hooks/useMapbox';
 import { useMarkerPreview } from '@/features/markers/hooks/useMarkerPreview';
 import { selectMarkers, useMapStore } from '@/store';
@@ -38,6 +39,7 @@ export const MapCanvas = memo(function MapCanvas() {
   return (
     <section className="absolute inset-0" aria-label={t.map.ariaLabel}>
       <div ref={containerRef} className="h-full w-full" />
+      <AzimuthCompass />
       {!mapboxToken ? (
         <div className="absolute inset-x-4 top-4 rounded-md border border-border bg-background/92 p-4 text-sm shadow-xl backdrop-blur md:left-auto md:w-[26rem]">
           <p className="font-medium">{t.map.tokenRequiredTitle}</p>

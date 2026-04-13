@@ -100,7 +100,12 @@ export const uk = {
     tokenRequiredDescription:
       'Додай VITE_MAPBOX_TOKEN у локальне середовище і перезапусти dev server.',
     ariaLabel: 'Супутникова мапа рибальських міток',
-    markerLabel: (depth: number, structure: string) => `Глиб: ${depth}м | ${structure}`
+    markerLabel: (depth: number, structure: string) => `Глиб: ${depth}м | ${structure}`,
+    compass: {
+      title: 'Компас',
+      hint: 'Тапни напрямок',
+      azimuth: (value: number) => `${value}°`
+    }
   },
   toast: {
     anchorRequired: 'Please set your base point first.'
