@@ -99,22 +99,22 @@ FinalScore = clamp(
 Temperature:
 12-18°C -> 100
 18-23°C -> 80
-8-12°C -> 60
+8-12°C -> 70
 <8°C або >24°C -> 30
 
 Pressure:
 delta24h < -3 hPa -> +20
 abs(delta48h) < 2 hPa -> +10
-delta24h > 3 hPa -> -20
+delta24h > 3 hPa або pressure >1020 hPa -> -20
 ```
 
 ### Contextual multipliers
 
 Wind:
 S/SW/W -> x1.1
-N/E/NE влітку -> x1.0
-N/E/NE навесні або взимку -> x0.8
-N/E/NE восени -> x0.9
+N/E/NE влітку при temperature >20°C -> x1.05
+N/E/NE влітку без спеки -> x1.0
+N/E/NE навесні, восени або взимку -> x0.8
 
 Wind speed:
 10-25 км/г -> x1.15

@@ -73,12 +73,12 @@ function getTemperatureBaseScore(temperatureC: number): BaseScoreResult {
 
   if (temperatureC >= 8 && temperatureC < 12) {
     return {
-      score: 60,
+      score: 70,
       insights: [
         {
           factor: 'Температура',
           impact: 'neutral',
-          message: `${temperatureC}°C: прохолодна вода, активність можлива короткими виходами (+60 базових балів)`
+          message: `${temperatureC}°C: прохолодна, але робоча вода для коротких виходів (+70 базових балів)`
         }
       ]
     };
@@ -118,6 +118,19 @@ function getPressureBonus(input: ActivityInput): BaseScoreResult {
           factor: 'Тиск',
           impact: 'negative',
           message: `Тиск зростає на ${input.pressureDelta24h} hPa за 24 год: короп може піднятися в товщу води (-20)`
+        }
+      ]
+    };
+  }
+
+  if (input.pressureHpa > 1020) {
+    return {
+      score: -20,
+      insights: [
+        {
+          factor: 'Тиск',
+          impact: 'negative',
+          message: `Високий тиск ${input.pressureHpa} hPa: риба може триматися вище дна (-20)`
         }
       ]
     };
@@ -173,35 +186,35 @@ function getWindDirectionMultiplier(input: ActivityInput): MultiplierResult {
     };
   }
 
+  if (coldWind && input.season === 'summer' && input.temperatureC > 20) {
+    return {
+      value: 1.05,
+      insight: {
+        factor: 'Напрям вітру',
+        impact: 'positive',
+        message: `${input.windDirection} вітер у літню спеку охолоджує воду і підтримує кисень (+5%)`
+      }
+    };
+  }
+
   if (coldWind && input.season === 'summer') {
     return {
       value: 1,
       insight: {
         factor: 'Напрям вітру',
         impact: 'neutral',
-        message: `${input.windDirection} вітер влітку нейтральний: охолодження може навіть допомогти (0%)`
+        message: `${input.windDirection} вітер влітку без спеки не дає сильного ефекту (0%)`
       }
     };
   }
 
-  if (coldWind && (input.season === 'spring' || input.season === 'winter')) {
+  if (coldWind && (input.season === 'spring' || input.season === 'winter' || input.season === 'autumn')) {
     return {
       value: 0.8,
       insight: {
         factor: 'Напрям вітру',
         impact: 'negative',
-        message: `${input.windDirection} вітер у холодний сезон зупиняє прогрів води (-20%)`
-      }
-    };
-  }
-
-  if (coldWind) {
-    return {
-      value: 0.9,
-      insight: {
-        factor: 'Напрям вітру',
-        impact: 'negative',
-        message: `${input.windDirection} вітер восени часто охолоджує сектор (-10%)`
+        message: `${input.windDirection} вітер у прохолодний сезон зупиняє прогрів води і гасить живлення (-20%)`
       }
     };
   }
@@ -319,19 +332,23 @@ function getMoonMultiplier(moonPhaseAgeDays: number): MultiplierResult {
 }
 
 function getRecommendation(input: ActivityInput): string {
-  if (input.pressureTrend === 'rising') {
-    return 'Тиск зростає. Короп може піднятися в товщу води. Спробуйте Zig-Rig або мілководдя.';
+  if (input.pressureHpa > 1020 || input.pressureTrend === 'rising') {
+    return 'Високий тиск: риба піднімається в товщу води. Спробуйте Zig-Rig або ловіть на мілководді.';
   }
 
-  if (input.season === 'summer' && input.temperatureC > 23) {
-    return 'Вода перегріта. Риба шукає кисень. Шукайте тінь, водорості або ловіть вночі.';
+  if (input.season === 'summer' && input.temperatureC > 24) {
+    return 'Вода перегріта, низький рівень кисню. Шукайте рибу в тіні дерев, водоростях або ловіть вночі.';
   }
 
-  if (input.pressureTrend === 'falling') {
-    return 'Тиск падає! Ідеальний час для донного харчування. Використовуйте донні монтажі на твердому дні.';
+  if (input.pressureTrend === 'falling' && input.pressureHpa < 1012) {
+    return 'Тиск падає! Ідеальний час для донного харчування. Фокус на гравій та мул, використовуйте донні монтажі.';
   }
 
-  return 'Стабільні умови. Шукайте природні маршрути риби: бровки, переходи на мул і тверді плями.';
+  if (input.windSpeedKmh > 15 && (input.windDirection === 'S' || input.windDirection === 'SW')) {
+    return 'Сильний теплий вітер! Риба буде рухатися за вітром до берега. Ловіть на прибійному березі.';
+  }
+
+  return 'Стабільні умови. Шукайте природні маршрути риби: бровки, переходи з мулу на тверде дно.';
 }
 
 export function calculateCarpActivity(input: ActivityInput): ActivityReport {
