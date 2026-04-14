@@ -1,4 +1,4 @@
-import type { ActivityRating, ActivityReport, PressureTrend, Season, WeatherSnapshot } from '@/types/domain';
+import type { ActivityRating, ActivityReport, FishingMarker, PressureTrend, Season, WeatherSnapshot } from '@/types/domain';
 
 export interface ActivityInput {
   temperatureC: number;
@@ -18,7 +18,11 @@ export interface ActivityInput {
   activeSolunarPeriod: 'major' | 'minor' | null;
   kpIndex: number;
   currentHour: number;
+  currentTimestamp: number;
+  sunrise: string | null;
+  sunset: string | null;
   markerAzimuth?: number;
+  markerDepth?: number;
 }
 
 interface BaseScoreResult {
@@ -202,7 +206,8 @@ function getBiologicalBlocker(input: ActivityInput): ActivityReport | null {
 
   if (
     (input.season === 'autumn' || input.season === 'spring') &&
-    input.waterTempDelta24h < -4
+    input.waterTempDelta24h < -4 &&
+    (input.markerDepth === undefined || input.markerDepth < 3)
   ) {
     return {
       score: 20,
@@ -225,6 +230,44 @@ function getBiologicalBlocker(input: ActivityInput): ActivityReport | null {
   }
 
   return null;
+}
+
+function getDepthThermalBufferMultiplier(input: ActivityInput): MultiplierResult {
+  if (
+    input.markerDepth !== undefined &&
+    input.markerDepth >= 3 &&
+    (input.season === 'autumn' || input.season === 'spring') &&
+    input.waterTempDelta24h < -4
+  ) {
+    return {
+      value: 0.85,
+      insight: {
+        factor: 'Глибина',
+        impact: 'positive',
+        message: 'Глибина 3+ метри: точка захищена від різкого температурного шоку на поверхні. Замість блокера застосовано лише -15%.'
+      }
+    };
+  }
+
+  if (input.markerDepth !== undefined) {
+    return {
+      value: 1,
+      insight: {
+        factor: 'Глибина',
+        impact: 'neutral',
+        message: `Глибина ${input.markerDepth} м: без окремого термального буфера для поточних умов (0%)`
+      }
+    };
+  }
+
+  return {
+    value: 1,
+    insight: {
+      factor: 'Глибина',
+      impact: 'neutral',
+      message: 'Глибина не задана: термальний буфер точки не враховується (0%)'
+    }
+  };
 }
 
 function getWindDirectionMultiplier(input: ActivityInput): MultiplierResult {
@@ -382,6 +425,17 @@ function getDiurnalOxygenMultiplier(input: ActivityInput): MultiplierResult {
   }
 
   if (input.currentHour >= 4 && input.currentHour < 8) {
+    if (input.windSpeedKmh > 12) {
+      return {
+        value: 1,
+        insight: {
+          factor: 'Кисень',
+          impact: 'positive',
+          message: 'Нічний вітер перемішав воду: ранкового дефіциту кисню немає.'
+        }
+      };
+    }
+
     return {
       value: 0.85,
       insight: {
@@ -504,8 +558,37 @@ function getMoonMultiplier(moonPhaseAgeDays: number): MultiplierResult {
   };
 }
 
-function getSolunarMultiplier(activeSolunarPeriod: 'major' | 'minor' | null): MultiplierResult {
-  if (activeSolunarPeriod === 'major') {
+function isDaylight(input: ActivityInput): boolean {
+  if (!input.sunrise || !input.sunset) {
+    return false;
+  }
+
+  const sunriseTimestamp = Date.parse(input.sunrise);
+  const sunsetTimestamp = Date.parse(input.sunset);
+
+  if (!Number.isFinite(sunriseTimestamp) || !Number.isFinite(sunsetTimestamp)) {
+    return false;
+  }
+
+  return input.currentTimestamp > sunriseTimestamp && input.currentTimestamp < sunsetTimestamp;
+}
+
+function getSolunarMultiplier(input: ActivityInput): MultiplierResult {
+  const shouldReduceDaylightSolunar =
+    isDaylight(input) && input.cloudCoverPercent < 30 && input.activeSolunarPeriod !== null;
+
+  if (input.activeSolunarPeriod === 'major') {
+    if (shouldReduceDaylightSolunar) {
+      return {
+        value: 1.1,
+        insight: {
+          factor: 'Solunar',
+          impact: 'neutral',
+          message: 'Денний Solunar пік послаблений через яскраве сонце та обережність риби. Major дає лише +10%.'
+        }
+      };
+    }
+
     return {
       value: 1.25,
       insight: {
@@ -516,7 +599,18 @@ function getSolunarMultiplier(activeSolunarPeriod: 'major' | 'minor' | null): Mu
     };
   }
 
-  if (activeSolunarPeriod === 'minor') {
+  if (input.activeSolunarPeriod === 'minor') {
+    if (shouldReduceDaylightSolunar) {
+      return {
+        value: 1.05,
+        insight: {
+          factor: 'Solunar',
+          impact: 'neutral',
+          message: 'Денний Solunar пік послаблений через яскраве сонце та обережність риби. Minor дає лише +5%.'
+        }
+      };
+    }
+
     return {
       value: 1.15,
       insight: {
@@ -573,9 +667,10 @@ export function calculateCarpActivity(input: ActivityInput): ActivityReport {
     getWindDirectionMultiplier(input),
     getSpatialWindMultiplier(input),
     getWindSpeedMultiplier(input.windSpeedKmh),
+    getDepthThermalBufferMultiplier(input),
     getLightMultiplier(input.cloudCoverPercent, input.precipitationMm),
     getMoonMultiplier(input.moonPhaseAgeDays),
-    getSolunarMultiplier(input.activeSolunarPeriod),
+    getSolunarMultiplier(input),
     getDiurnalOxygenMultiplier(input),
     getGeomagneticMultiplier(input.kpIndex)
   ];
@@ -604,7 +699,10 @@ export function calculateCarpActivity(input: ActivityInput): ActivityReport {
   };
 }
 
-export function calculateMarkerActivity(weather: WeatherSnapshot, markerAzimuth: number): ActivityReport {
+export function calculateMarkerActivity(
+  weather: WeatherSnapshot,
+  marker: Pick<FishingMarker, 'azimuth' | 'depth'>
+): ActivityReport {
   return calculateCarpActivity({
     temperatureC: weather.temperatureC,
     waterTempProxyC: weather.waterTempProxyC,
@@ -623,7 +721,11 @@ export function calculateMarkerActivity(weather: WeatherSnapshot, markerAzimuth:
     activeSolunarPeriod: weather.activeSolunarPeriod,
     kpIndex: weather.kpIndex,
     currentHour: new Date(weather.timestamp).getHours(),
-    markerAzimuth
+    currentTimestamp: weather.timestamp,
+    sunrise: weather.sunrise,
+    sunset: weather.sunset,
+    markerAzimuth: marker.azimuth,
+    markerDepth: marker.depth
   });
 }
 

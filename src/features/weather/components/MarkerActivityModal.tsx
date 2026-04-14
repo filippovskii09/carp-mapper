@@ -17,7 +17,7 @@ export function MarkerActivityModal({ markerId, onClose }: MarkerActivityModalPr
       return null;
     }
 
-    return calculateMarkerActivity(weather, marker.azimuth);
+    return calculateMarkerActivity(weather, marker);
   }, [marker, weather]);
 
   if (!markerId || !marker) {
@@ -29,10 +29,10 @@ export function MarkerActivityModal({ markerId, onClose }: MarkerActivityModalPr
       <div className="weather-details-panel marker-activity-panel">
         <header className="weather-details-header">
           <div>
-            <p className="text-xs font-semibold text-muted-foreground">Просторовий розрахунок v4</p>
+            <p className="text-xs font-semibold text-muted-foreground">Просторовий розрахунок v5</p>
             <h2 className="text-xl font-bold">{marker.name}</h2>
             <p className="text-xs text-muted-foreground">
-              Азимут {Math.round(marker.azimuth)}° · дистанція {Math.round(marker.distance)} м
+              Азимут {Math.round(marker.azimuth)}° · глибина {marker.depth} м · дистанція {Math.round(marker.distance)} м
             </p>
           </div>
           <button className="weather-icon-button" type="button" onClick={onClose} aria-label="Закрити активність мітки">
@@ -59,6 +59,19 @@ export function MarkerActivityModal({ markerId, onClose }: MarkerActivityModalPr
                     Вітер {weather.windDirection} {weather.windDirectionDegrees}° · закид {Math.round(marker.azimuth)}°
                   </p>
                 </div>
+              </section>
+
+              <section className="weather-details-section">
+                <h3>Статус точки</h3>
+                <p>
+                  Глибина {marker.depth} м · азимут {Math.round(marker.azimuth)}° · WTP {weather.waterTempProxyC}° ·{' '}
+                  {weather.waterTempDelta24h > 0 ? '+' : ''}
+                  {weather.waterTempDelta24h}°/24г
+                </p>
+                <p>
+                  Вітер {weather.windDirection} {weather.windDirectionDegrees}° · {weather.windSpeedKmh} км/г · Kp{' '}
+                  {weather.kpIndex}
+                </p>
               </section>
 
               <section className="weather-details-section">

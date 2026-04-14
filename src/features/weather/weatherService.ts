@@ -279,6 +279,8 @@ export async function fetchWeatherSnapshot(
   const activeSolunarPeriod = getActiveSolunarPeriod(solunarWindows);
   const kpIndex = await fetchKpIndex(signal);
   const windDirectionDegrees = Math.round(current.wind_direction_10m ?? 0);
+  const sunrise = data.daily?.sunrise?.[0] ?? null;
+  const sunset = data.daily?.sunset?.[0] ?? null;
   const activityReport = calculateCarpActivity({
     temperatureC,
     waterTempProxyC,
@@ -296,7 +298,10 @@ export async function fetchWeatherSnapshot(
     season,
     activeSolunarPeriod,
     kpIndex,
-    currentHour: new Date(timestamp).getHours()
+    currentHour: new Date(timestamp).getHours(),
+    currentTimestamp: timestamp,
+    sunrise,
+    sunset
   });
 
   return {
@@ -319,8 +324,8 @@ export async function fetchWeatherSnapshot(
       kpIndex,
       solunarWindows,
       activeSolunarPeriod,
-      sunrise: data.daily?.sunrise?.[0] ?? null,
-      sunset: data.daily?.sunset?.[0] ?? null,
+      sunrise,
+      sunset,
       activityBadge: getActivityBadge(activityReport),
       activityReport,
       timestamp
