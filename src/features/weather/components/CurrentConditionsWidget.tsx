@@ -56,6 +56,9 @@ export function CurrentConditionsWidget() {
               <p className="truncate text-xs text-muted-foreground">
                 WTP {weather.waterTempProxyC}° · {weather.windDirection} {weather.windSpeedKmh} км/г
               </p>
+              <p className="truncate text-[0.68rem] font-semibold text-primary">
+                Розрахунок для водойми в цілому
+              </p>
             </div>
           </button>
         ) : (

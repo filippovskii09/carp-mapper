@@ -1,6 +1,6 @@
-import type { ActivityRating, ActivityReport, PressureTrend, Season } from '@/types/domain';
+import type { ActivityRating, ActivityReport, PressureTrend, Season, WeatherSnapshot } from '@/types/domain';
 
-interface ActivityInput {
+export interface ActivityInput {
   temperatureC: number;
   waterTempProxyC: number;
   waterTempDelta24h: number;
@@ -9,6 +9,7 @@ interface ActivityInput {
   pressureDelta24h: number;
   pressureDelta48h: number;
   windDirection: string;
+  windDirectionDegrees: number;
   windSpeedKmh: number;
   cloudCoverPercent: number;
   precipitationMm: number;
@@ -16,6 +17,8 @@ interface ActivityInput {
   season: Season;
   activeSolunarPeriod: 'major' | 'minor' | null;
   kpIndex: number;
+  currentHour: number;
+  markerAzimuth?: number;
 }
 
 interface BaseScoreResult {
@@ -282,6 +285,57 @@ function getWindDirectionMultiplier(input: ActivityInput): MultiplierResult {
   };
 }
 
+function getSpatialWindMultiplier(input: ActivityInput): MultiplierResult {
+  if (input.markerAzimuth === undefined) {
+    return {
+      value: 1,
+      insight: {
+        factor: 'Простір',
+        impact: 'neutral',
+        message: 'Розрахунок для водойми в цілому: оберіть конкретну мітку, щоб оцінити вітер відносно закиду (0%)'
+      }
+    };
+  }
+
+  const normalizedAzimuth = ((input.markerAzimuth % 360) + 360) % 360;
+  let angleDiff = Math.abs(input.windDirectionDegrees - normalizedAzimuth);
+
+  if (angleDiff > 180) {
+    angleDiff = 360 - angleDiff;
+  }
+
+  if (angleDiff <= 45) {
+    return {
+      value: 1.3,
+      insight: {
+        factor: 'Вектор закиду',
+        impact: 'positive',
+        message: 'Вітер в обличчя (Прибійний берег). Хвиля несе природний корм прямо на вашу точку (+30%).'
+      }
+    };
+  }
+
+  if (angleDiff >= 135) {
+    return {
+      value: 0.8,
+      insight: {
+        factor: 'Вектор закиду',
+        impact: 'negative',
+        message: 'Вітер у спину. Риба швидше за все відійшла за вітром до протилежного берега (-20%).'
+      }
+    };
+  }
+
+  return {
+    value: 1,
+    insight: {
+      factor: 'Вектор закиду',
+      impact: 'neutral',
+      message: `Боковий вітер відносно закиду (${Math.round(angleDiff)}°): без сильного просторового множника (0%)`
+    }
+  };
+}
+
 function getWindSpeedMultiplier(windSpeedKmh: number): MultiplierResult {
   if (windSpeedKmh >= 10 && windSpeedKmh <= 25) {
     return {
@@ -311,6 +365,72 @@ function getWindSpeedMultiplier(windSpeedKmh: number): MultiplierResult {
       factor: 'Сила вітру',
       impact: 'neutral',
       message: `${windSpeedKmh} км/г: робоча швидкість без додаткового множника (0%)`
+    }
+  };
+}
+
+function getDiurnalOxygenMultiplier(input: ActivityInput): MultiplierResult {
+  if (input.season !== 'summer' || input.waterTempProxyC <= 22) {
+    return {
+      value: 1,
+      insight: {
+        factor: 'Кисень',
+        impact: 'neutral',
+        message: 'Добовий кисневий цикл не є критичним для поточної температури води (0%)'
+      }
+    };
+  }
+
+  if (input.currentHour >= 4 && input.currentHour < 8) {
+    return {
+      value: 0.85,
+      insight: {
+        factor: 'Кисень',
+        impact: 'negative',
+        message: 'Ранковий дефіцит кисню. Водорості за ніч спожили кисень, активність риби низька.'
+      }
+    };
+  }
+
+  if (input.currentHour >= 16 && input.currentHour < 20) {
+    return {
+      value: 1.15,
+      insight: {
+        factor: 'Кисень',
+        impact: 'positive',
+        message: 'Максимум кисню. Завдяки денному фотосинтезу вода збагачена киснем, риба активізується.'
+      }
+    };
+  }
+
+  return {
+    value: 1,
+    insight: {
+      factor: 'Кисень',
+      impact: 'neutral',
+      message: 'Тепла вода потребує контролю кисню, але зараз не пікове ранкове або вечірнє вікно (0%)'
+    }
+  };
+}
+
+function getGeomagneticMultiplier(kpIndex: number): MultiplierResult {
+  if (kpIndex >= 5) {
+    return {
+      value: 0.6,
+      insight: {
+        factor: 'Магнітна буря',
+        impact: 'negative',
+        message: 'Сильна магнітна буря (Kp >= 5). У риби збита орієнтація, харчова активність пригнічена.'
+      }
+    };
+  }
+
+  return {
+    value: 1,
+    insight: {
+      factor: 'Магнітне поле',
+      impact: 'neutral',
+      message: `Kp ${kpIndex}: геомагнітний фон без сильного впливу на орієнтацію риби (0%)`
     }
   };
 }
@@ -418,6 +538,10 @@ function getSolunarMultiplier(activeSolunarPeriod: 'major' | 'minor' | null): Mu
 }
 
 function getRecommendation(input: ActivityInput): string {
+  if (input.pressureDelta48h > 5 && input.pressureHpa > 1018) {
+    return 'Післяфронтальний шок: різке зростання тиску після шторму. Зменшіть корм і шукайте короткі виходи біля укриттів.';
+  }
+
   if (input.pressureHpa > 1020 || input.pressureTrend === 'rising') {
     return 'Високий тиск: риба піднімається в товщу води. Спробуйте Zig-Rig або ловіть на мілководді.';
   }
@@ -447,21 +571,60 @@ export function calculateCarpActivity(input: ActivityInput): ActivityReport {
   const baseScore = calculateBaseScore(input);
   const multipliers = [
     getWindDirectionMultiplier(input),
+    getSpatialWindMultiplier(input),
     getWindSpeedMultiplier(input.windSpeedKmh),
     getLightMultiplier(input.cloudCoverPercent, input.precipitationMm),
     getMoonMultiplier(input.moonPhaseAgeDays),
-    getSolunarMultiplier(input.activeSolunarPeriod)
+    getSolunarMultiplier(input.activeSolunarPeriod),
+    getDiurnalOxygenMultiplier(input),
+    getGeomagneticMultiplier(input.kpIndex)
   ];
   const multiplier = multipliers.reduce((total, item) => total * item.value, 1);
-  const score = clampScore(baseScore.score * multiplier);
+  const uncappedScore = clampScore(baseScore.score * multiplier);
+  const isPostFrontalLockjaw = input.pressureDelta48h > 5 && input.pressureHpa > 1018;
+  const score = isPostFrontalLockjaw ? Math.min(uncappedScore, 35) : uncappedScore;
+  const postFrontalInsight: ActivityReport['insights'][number] | null = isPostFrontalLockjaw
+    ? {
+        factor: 'Фронт',
+        impact: 'negative',
+        message: 'Післяфронтальний шок. Різке зростання тиску після шторму. Риба в стані ступору (Lockjaw).'
+      }
+    : null;
 
   return {
     score,
     rating: getRating(score),
     recommendation: getRecommendation(input),
-    blocker: null,
-    insights: [...baseScore.insights, ...multipliers.map((item) => item.insight)]
+    blocker: isPostFrontalLockjaw ? 'post-frontal-lockjaw' : null,
+    insights: [
+      ...baseScore.insights,
+      ...multipliers.map((item) => item.insight),
+      ...(postFrontalInsight ? [postFrontalInsight] : [])
+    ]
   };
+}
+
+export function calculateMarkerActivity(weather: WeatherSnapshot, markerAzimuth: number): ActivityReport {
+  return calculateCarpActivity({
+    temperatureC: weather.temperatureC,
+    waterTempProxyC: weather.waterTempProxyC,
+    waterTempDelta24h: weather.waterTempDelta24h,
+    pressureHpa: weather.pressureHpa,
+    pressureTrend: weather.pressureTrend,
+    pressureDelta24h: weather.pressureDelta24h,
+    pressureDelta48h: weather.pressureDelta48h,
+    windDirection: weather.windDirection,
+    windDirectionDegrees: weather.windDirectionDegrees,
+    windSpeedKmh: weather.windSpeedKmh,
+    cloudCoverPercent: weather.cloudCoverPercent,
+    precipitationMm: weather.precipitationMm,
+    moonPhaseAgeDays: weather.moonPhaseAgeDays,
+    season: weather.season,
+    activeSolunarPeriod: weather.activeSolunarPeriod,
+    kpIndex: weather.kpIndex,
+    currentHour: new Date(weather.timestamp).getHours(),
+    markerAzimuth
+  });
 }
 
 export function getActivityBadge(report: ActivityReport): string {

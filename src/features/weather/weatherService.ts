@@ -199,8 +199,33 @@ function getWaterStatus(waterTempProxyC: number, waterTempDelta24h: number): Wat
   return 'stable';
 }
 
-async function fetchKpIndex(): Promise<number> {
-  return 2;
+async function fetchKpIndex(signal?: AbortSignal): Promise<number> {
+  try {
+    const response = await fetch('https://services.swpc.noaa.gov/products/noaa-planetary-k-index.json', {
+      signal
+    });
+
+    if (!response.ok) {
+      return 2;
+    }
+
+    const data = (await response.json()) as unknown;
+
+    if (!Array.isArray(data)) {
+      return 2;
+    }
+
+    const latest = data
+      .filter((row): row is unknown[] => Array.isArray(row))
+      .slice(1)
+      .at(-1);
+    const rawKp = latest?.[1];
+    const kpIndex = Number.parseFloat(String(rawKp));
+
+    return Number.isFinite(kpIndex) ? round(kpIndex) : 2;
+  } catch {
+    return 2;
+  }
 }
 
 export async function fetchWeatherSnapshot(
@@ -252,7 +277,8 @@ export async function fetchWeatherSnapshot(
   const waterStatus = getWaterStatus(waterTempProxyC, waterTempDelta24h);
   const solunarWindows = calculateSolunarWindows(timestamp, moonPhase.moonPhaseAgeDays);
   const activeSolunarPeriod = getActiveSolunarPeriod(solunarWindows);
-  const kpIndex = await fetchKpIndex();
+  const kpIndex = await fetchKpIndex(signal);
+  const windDirectionDegrees = Math.round(current.wind_direction_10m ?? 0);
   const activityReport = calculateCarpActivity({
     temperatureC,
     waterTempProxyC,
@@ -262,13 +288,15 @@ export async function fetchWeatherSnapshot(
     pressureDelta24h,
     pressureDelta48h,
     windDirection,
+    windDirectionDegrees,
     windSpeedKmh,
     cloudCoverPercent,
     precipitationMm,
     moonPhaseAgeDays: moonPhase.moonPhaseAgeDays,
     season,
     activeSolunarPeriod,
-    kpIndex
+    kpIndex,
+    currentHour: new Date(timestamp).getHours()
   });
 
   return {
@@ -282,7 +310,7 @@ export async function fetchWeatherSnapshot(
       pressureDelta24h,
       pressureDelta48h,
       windSpeedKmh,
-      windDirectionDegrees: Math.round(current.wind_direction_10m ?? 0),
+      windDirectionDegrees,
       windDirection,
       cloudCoverPercent,
       precipitationMm,

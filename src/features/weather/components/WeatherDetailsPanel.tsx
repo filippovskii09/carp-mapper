@@ -37,6 +37,9 @@ export function WeatherDetailsPanel({ error, isLoading, onClose, weather }: Weat
                 <div>
                   <p className="text-lg font-bold">{getRatingLabel(weather.activityReport.rating)}</p>
                   <p className="mt-1 text-sm text-muted-foreground">{weather.activityReport.recommendation}</p>
+                  <p className="mt-2 rounded-md bg-primary/12 px-3 py-2 text-xs font-semibold text-foreground">
+                    Розрахунок для водойми в цілому. Для просторової оцінки відкрийте конкретну мітку на мапі.
+                  </p>
                   {weather.activityReport.blocker ? (
                     <p className="mt-2 rounded-md bg-destructive/18 px-3 py-2 text-xs font-bold text-foreground">
                       Активний біологічний блокер
